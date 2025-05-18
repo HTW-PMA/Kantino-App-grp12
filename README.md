@@ -9,17 +9,17 @@
 - Alhabash, Nouran ()
 - Freiherr von Wangenheim, Béla (589289)
 
----
+
 
 ## 📝 Projektbeschreibung
 Lorem Ipsum
 
----
+
 
 ## 🎯 Features
 Lorem Ipsum
 
----
+
 
 ## 🛠️ Tech-Stack
 - **Framework:** 
@@ -27,13 +27,13 @@ Lorem Ipsum
 - **API:** [Swagger Doku](https://mensa.gregorflachs.de/swaggerdoku)
 - **Datenbank:** 
 
----
+
 
 ## 🚀 Setup & Installation
 ```bash
 
 ```
 
----
+
 
 ## 📸 Screenshots
