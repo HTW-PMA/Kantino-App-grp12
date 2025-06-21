@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "KantinoTemp",
-    "slug": "KantinoTemp",
+    "name": "Kantino",
+    "slug": "Kantino",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "kantinotemp",
+    "scheme": "kantino",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
