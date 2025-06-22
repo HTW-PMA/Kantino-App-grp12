@@ -6,7 +6,7 @@ import {
     Alert,
     ScrollView
 } from 'react-native';
-import { fetchCanteens } from '@/services/mensaService';
+import { fetchCanteens } from '@/lib/api/mensaService';
 import MensaCard from '@/components/mensen/MensaCard';
 import ExpandedMensaCard from '@/components/mensen/ExpandedMensaCard';
 import SearchBar from '@/components/mensen/SearchBar';
