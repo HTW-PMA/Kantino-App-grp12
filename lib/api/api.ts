@@ -11,5 +11,5 @@ export const ENDPOINTS = {
 
 // Validierung für Development
 if (!API_KEY && __DEV__) {
-    console.warn('⚠️ EXPO_PUBLIC_MENSA_API_KEY ist nicht gesetzt! Bitte .env Datei erstellen.');
+    console.warn('EXPO_PUBLIC_MENSA_API_KEY ist nicht gesetzt! Bitte .env Datei erstellen.');
 }

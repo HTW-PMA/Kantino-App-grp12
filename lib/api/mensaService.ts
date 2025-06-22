@@ -1,5 +1,5 @@
 // services/mensaService.ts
-import { BASE_URL, ENDPOINTS, API_KEY } from '@/constants/api';
+import { BASE_URL, ENDPOINTS, API_KEY } from '@/lib/api/api';
 
 /**
  * Basis-Fetch-Funktion mit API-Key-Header
