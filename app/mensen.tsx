@@ -26,7 +26,7 @@ export default function MensenScreen() {
         try {
             setLoading(true);
             const data = await fetchCanteensWithCache();
-            console.log('Mensen geladen:', data);
+            //console.log('Mensen geladen:', data);
             setMensen(data);
             setFilteredMensen(data);
         } catch (error) {
