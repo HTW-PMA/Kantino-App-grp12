@@ -6,7 +6,7 @@ import {
     Alert,
     ScrollView
 } from 'react-native';
-import { fetchCanteens } from '@/lib/api/mensaService';
+import { fetchCanteensWithCache } from '@/lib/cache';
 import MensaCard from '@/components/mensen/MensaCard';
 import ExpandedMensaCard from '@/components/mensen/ExpandedMensaCard';
 import SearchBar from '@/components/mensen/SearchBar';
@@ -25,8 +25,8 @@ export default function MensenScreen() {
     const loadMensen = async () => {
         try {
             setLoading(true);
-            const data = await fetchCanteens();
-            // console.log('Mensen geladen:', data);
+            const data = await fetchCanteensWithCache();
+            console.log('Mensen geladen:', data);
             setMensen(data);
             setFilteredMensen(data);
         } catch (error) {

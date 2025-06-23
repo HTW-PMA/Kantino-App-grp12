@@ -1,4 +1,4 @@
-export const BASE_URL = process.env.EXPO_PUBLIC_MENSA_BASE_URL || 'https://mensa.gregorflachs.de/api/v1';
+export const BASE_URL = process.env.EXPO_PUBLIC_MENSA_BASE_URL;
 export const API_KEY = process.env.EXPO_PUBLIC_MENSA_API_KEY;
 
 export const ENDPOINTS = {
