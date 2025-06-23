@@ -46,7 +46,7 @@ export async function fetchCanteens() {
  * @param date - Datum im Format YYYY-MM-DD
  */
 export async function fetchMenu(canteenId: string, date: string) {
-    return apiRequest(`${ENDPOINTS.menue}?canteen=${canteenId}&date=${date}`);
+    return apiRequest(`${ENDPOINTS.menue}?canteenId=${canteenId}&startdate=${date}`);
 }
 
 /**

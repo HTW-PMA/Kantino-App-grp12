@@ -22,6 +22,18 @@ export async function fetchCanteensWithCache(): Promise<any> {
     }
 }
 
+export async function fetchMenuWithCache(canteenId: string, date: string) {
+    try {
+        const data = await fetchMenu(canteenId, date);
+        await AsyncStorage.setItem(CACHE_KEYS.menu, JSON.stringify(data));
+        return data;
+    } catch (e) {
+        const cached = await AsyncStorage.getItem(CACHE_KEYS.menu);
+        if (cached) return JSON.parse(cached);
+        throw e;
+    }
+}
+
 // Repeat for other endpoints...
 export async function fetchMealsWithCache() {
     try {

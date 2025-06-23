@@ -1,29 +1,36 @@
-
-import React from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import React, {useEffect, useState} from 'react';
+import {View, Text, ScrollView, Platform} from 'react-native';
+import { fetchMenuWithCache } from '@/lib/cache'; // or wherever your function is
 
 export default function SpeiseplanScreen() {
+    const [menuData, setMenuData] = useState<any>(null);
+
+    useEffect(() => {
+        async function testCache() {
+            const canteenId = '655ff175136d3b580c970f81';
+            const date = '2025-06-17';
+
+            try {
+                const menu = await fetchMenuWithCache(canteenId, date);
+                setMenuData(menu); // store full data
+
+                console.log('MENU DATA:', menu);
+            } catch (e) {
+                console.log('Error loading menu:', e);
+                setMenuData({ error: String(e) });
+            }
+        }
+        testCache();
+    }, []);
+
+
+
+
     return (
-        <View style={styles.container}>
-            <Text style={styles.text}>
-                Hier wird der Speiseplan implementiert.
+        <ScrollView style={{ flex: 1, backgroundColor: '#fff', padding: 10 }}>
+            <Text selectable style={{ fontSize: 12, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>
+                {menuData ? JSON.stringify(menuData, null, 2) : 'Lade Menüdaten...'}
             </Text>
-        </View>
+        </ScrollView>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#f0f0f0',
-        padding: 20,
-    },
-    text: {
-        fontSize: 18,
-        textAlign: 'center',
-        color: '#333',
-        fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-    },
-});
