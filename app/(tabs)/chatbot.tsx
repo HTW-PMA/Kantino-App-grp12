@@ -1,20 +1,20 @@
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useRef } from 'react';
+import { useFocusEffect } from 'expo-router';
+import ChatbotScreen from '@/components/chatbot/ChatbotScreen';
 
-export default function ChatbotScreen() {
-    return (
-        <View style={styles.container}>
-            <Text style={styles.text}>🤖 Hallo! Ich bin der Chatbot</Text>
-        </View>
+export default function ChatbotTab() {
+    const chatbotRef = useRef<any>(null);
+
+    useFocusEffect(
+        React.useCallback(() => {
+            // Wenn der Tab verlassen wird, Chat reset
+            return () => {
+                if (chatbotRef.current && chatbotRef.current.resetChat) {
+                    chatbotRef.current.resetChat();
+                }
+            };
+        }, [])
     );
-}
 
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    text: {
-        fontSize: 20,
-    },
-});
+    return <ChatbotScreen ref={chatbotRef} />;
+}
