@@ -6,7 +6,8 @@ const CACHE_KEYS = {
     meals: 'meals',
     badges: 'badges',
     additives: 'additives',
-    menu: 'menu', // Add parameters as needed
+    menu: 'menu',
+    userName: 'userName',
 };
 
 export async function fetchCanteensWithCache(): Promise<any> {
@@ -47,4 +48,29 @@ export async function fetchMealsWithCache() {
     }
 }
 
-// ...etc
+// Neue Funktionen für User-Name
+export const storeName = async (name: string): Promise<void> => {
+    try {
+        await AsyncStorage.setItem(CACHE_KEYS.userName, name);
+    } catch (error) {
+        console.error('Error storing name:', error);
+    }
+};
+
+export const getName = async (): Promise<string | null> => {
+    try {
+        const name = await AsyncStorage.getItem(CACHE_KEYS.userName);
+        return name;
+    } catch (error) {
+        console.error('Error getting name:', error);
+        return null;
+    }
+};
+
+export const removeName = async (): Promise<void> => {
+    try {
+        await AsyncStorage.removeItem(CACHE_KEYS.userName);
+    } catch (error) {
+        console.error('Error removing name:', error);
+    }
+};
