@@ -7,16 +7,30 @@ import { Feather } from '@expo/vector-icons';
 interface HeaderProps {
     title: string;
     showBack?: boolean;
+    onBackPress?: () => void;
     onMenuPress?: () => void;
 }
 
-const CustomHeader: React.FC<HeaderProps> = ({ title, showBack = true, onMenuPress }) => {
+const CustomHeader: React.FC<HeaderProps> = ({
+                                                 title,
+                                                 showBack = true,
+                                                 onBackPress,
+                                                 onMenuPress
+                                             }) => {
     const router = useRouter();
+
+    const handleBackPress = () => {
+        if (onBackPress) {
+            onBackPress();
+        } else {
+            router.back();
+        }
+    };
 
     return (
         <View style={styles.header}>
             {showBack ? (
-                <TouchableOpacity onPress={() => router.back()}>
+                <TouchableOpacity onPress={handleBackPress}>
                     <Feather name="arrow-left" size={24} color="limegreen" />
                 </TouchableOpacity>
             ) : (
@@ -35,8 +49,8 @@ const CustomHeader: React.FC<HeaderProps> = ({ title, showBack = true, onMenuPre
 const styles = StyleSheet.create({
     header: {
         backgroundColor: '#662a60',
-        paddingTop: 40,
-        paddingBottom: 12,
+        paddingTop: 50,
+        paddingBottom: 20,
         paddingHorizontal: 16,
         flexDirection: 'row',
         justifyContent: 'space-between',
