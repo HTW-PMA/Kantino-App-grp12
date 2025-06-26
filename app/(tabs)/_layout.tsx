@@ -1,25 +1,22 @@
+// app/(tabs)/_layout.tsx
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { Image, Platform } from 'react-native';
-
 import { HapticTab } from '@/components/HapticTab';
 import { IconSymbol } from '@/components/ui/IconSymbol';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import CustomHeader from '@/components/CustomHeader';
 
 export default function TabLayout() {
-    const colorScheme = useColorScheme();
-
     return (
         <Tabs
             screenOptions={{
                 tabBarActiveTintColor: 'white',
                 tabBarInactiveTintColor: '#ccc',
-                headerShown: false,
+                headerShown: true,
                 tabBarButton: HapticTab,
                 tabBarStyle: {
                     backgroundColor: '#662a60',
-                    height: 70,
+                    height: 80,
                     paddingBottom: Platform.OS === 'ios' ? 20 : 10,
                     paddingTop: 5,
                     borderTopWidth: 0,
@@ -28,6 +25,13 @@ export default function TabLayout() {
                 tabBarLabelStyle: {
                     fontSize: 12,
                 },
+                header: ({ route }) => (
+                    <CustomHeader
+                        title={getTabTitle(route.name)}
+                        showBack={route.name !== 'index'}
+                        onMenuPress={() => console.log('Menu pressed')}
+                    />
+                ),
             }}
         >
             <Tabs.Screen
@@ -37,6 +41,14 @@ export default function TabLayout() {
                     tabBarIcon: ({ color }) => (
                         <IconSymbol name="house.fill" color={color} size={28} />
                     ),
+                }}
+            />
+            // Wird somit nicht bei der Navigation angezeigt
+            <Tabs.Screen
+                name="mensen"
+                options={{
+                    title: 'Mensen',
+                    href: null,
                 }}
             />
             <Tabs.Screen
@@ -62,7 +74,7 @@ export default function TabLayout() {
                     title: 'Chatbot',
                     tabBarIcon: ({ focused }) => (
                         <Image
-                            source={require('../../assets/images/mensen/chatbot.png')}
+                            source={require('../../assets/images/chatbot.png')}
                             style={{
                                 width: 26,
                                 height: 26,
@@ -79,7 +91,7 @@ export default function TabLayout() {
                     title: 'Profil',
                     tabBarIcon: ({ focused }) => (
                         <Image
-                            source={require('../../assets/images/mensen/profil.png')}
+                            source={require('../../assets/images/profil.png')}
                             style={{
                                 width: 26,
                                 height: 26,
@@ -92,4 +104,21 @@ export default function TabLayout() {
             />
         </Tabs>
     );
+}
+
+function getTabTitle(routeName: string): string {
+    switch (routeName) {
+        case 'index':
+            return 'Kantino';
+        case 'mensen':
+            return 'Mensen';
+        case 'saved':
+            return 'Gespeichert';
+        case 'chatbot':
+            return 'Chatbot';
+        case 'profile':
+            return 'Profil';
+        default:
+            return 'Kantino';
+    }
 }
