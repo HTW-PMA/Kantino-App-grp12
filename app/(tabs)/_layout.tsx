@@ -44,6 +44,14 @@ export default function TabLayout() {
             />
             // Wird somit nicht bei der Navigation angezeigt
             <Tabs.Screen
+                name="speiseplan"
+                options={{
+                    title: 'Speiseplan',
+                    href: null,
+                }}
+            />
+
+            <Tabs.Screen
                 name="mensen"
                 options={{
                     title: 'Mensen',
@@ -111,6 +119,8 @@ function getTabTitle(routeName: string): string {
             return 'Kantino';
         case 'mensen':
             return 'Mensen';
+        case 'speiseplan':
+            return 'Speiseplan';
         case 'saved':
             return 'Gespeichert';
         case 'chatbot':
