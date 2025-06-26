@@ -1,29 +1,86 @@
 // app/(tabs)/saved.tsx
 
-import React, { useState } from 'react';
-import { View, Text, TextInput, Image, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import CustomHeader from '@/components/CustomHeader';
-import { useRouter } from 'expo-router';
+import React, { useEffect, useState, useCallback } from 'react';
+import {
+    View,
+    Text,
+    TextInput,
+    Image,
+    StyleSheet,
+    TouchableOpacity,
+    ScrollView,
+    Alert,
+    Linking,
+} from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
+import {
+    getSavedMensen,
+    fetchCanteensWithCache,
+    removeMensaFromSaved,
+    isMensaSaved,
+    addMensaToSaved,
+} from '@/lib/cache';
+import { getMensaImage } from '@/utils/getMensaImage';
 
 export default function SavedScreen() {
     const [search, setSearch] = useState('');
+    const [allMensen, setAllMensen] = useState([]);
+    const [savedMensenIds, setSavedMensenIds] = useState<string[]>([]);
     const router = useRouter();
 
-    const filteredMensen = [
-        {
-            id: 'ash-berlin', // mensaId für die Navigation
-            name: 'Mensa ASH Hellersdorf',
-            address: 'Alice-Salomon-Platz 5\n12627 Berlin',
-            phone: '+49(30)393939',
-            email: 'mensen@stw.berlin',
-            image: require('../../assets/images/mensen/mensa_ash.jpg'),
-        },
-    ];
+    const handleRoute = (mensa: any) => {
+        if (!mensa?.address) return;
+
+        const { street, zipcode, city } = mensa.address;
+        const encodedAddress = encodeURIComponent(`${street}, ${zipcode} ${city}`);
+        const url = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+
+        Linking.openURL(url).catch(err =>
+            console.error('Fehler beim Öffnen von Google Maps:', err)
+        );
+    };
+
+    useFocusEffect(
+        useCallback(() => {
+            loadData();
+        }, [])
+    );
+
+    const loadData = async () => {
+        try {
+            const all = await fetchCanteensWithCache();
+            const saved = await getSavedMensen();
+            setAllMensen(all);
+            setSavedMensenIds(saved);
+        } catch (err) {
+            console.error('Fehler beim Laden gespeicherter Mensen:', err);
+            Alert.alert('Fehler', 'Gespeicherte Mensen konnten nicht geladen werden.');
+        }
+    };
+
+    const toggleFavorite = async (mensaId: string) => {
+        const isSaved = await isMensaSaved(mensaId);
+        if (isSaved) {
+            const success = await removeMensaFromSaved(mensaId);
+            if (success) {
+                setSavedMensenIds((prev) => prev.filter((id) => id !== mensaId));
+            }
+        } else {
+            const success = await addMensaToSaved(mensaId);
+            if (success) {
+                setSavedMensenIds((prev) => [...prev, mensaId]);
+            }
+        }
+    };
+
+    const filteredMensen = allMensen
+        .filter((mensa) => savedMensenIds.includes(mensa.id))
+        .filter((mensa) =>
+            mensa.name.toLowerCase().includes(search.toLowerCase())
+        );
 
     return (
         <View style={styles.container}>
-            <CustomHeader title="Lieblings-Mensa" onMenuPress={() => console.log('Menü gedrückt')} />
-
             <TextInput
                 placeholder="Suche"
                 value={search}
@@ -31,42 +88,75 @@ export default function SavedScreen() {
                 style={styles.search}
             />
 
-            <ScrollView style={styles.cardContainer}>
-                {filteredMensen.map((mensa) => (
-                    <View key={mensa.id} style={styles.card}>
-                        <Image source={mensa.image} style={styles.image} />
-                        <View style={styles.info}>
-                            <Text>{mensa.address}</Text>
-                            <Text>Telefon: {mensa.phone}</Text>
-                            <Text>E-Mail: {mensa.email}</Text>
-                            <View style={styles.buttonRow}>
-                                <TouchableOpacity style={styles.button}>
-                                    <Text>Zum Speiseplan</Text>
-                                </TouchableOpacity>
-
-                                <TouchableOpacity style={styles.button}>
-                                    <Text>Route hierhin</Text>
-                                </TouchableOpacity>
-
+            {filteredMensen.length === 0 ? (
+                <View style={{ padding: 20 }}>
+                    <Text style={{ textAlign: 'center', color: '#666' }}>
+                        Es wurden noch keine Lieblingsmensen hinzugefügt!
+                    </Text>
+                </View>
+            ) : (
+                <ScrollView style={styles.cardContainer}>
+                    {filteredMensen.map((mensa) => (
+                        <View key={mensa.id} style={styles.card}>
+                            <View style={styles.imageContainer}>
+                                <Image source={getMensaImage(mensa.id)} style={styles.image} />
                                 <TouchableOpacity
-                                    style={styles.button}
-                                    onPress={() =>
-                                        router.push({
-                                            pathname: '/saved/lieblingsspeisen/[mensaId]',
-                                            params: { mensaId: mensa.id },
-                                        })
-                                    }
+                                    style={styles.heartIcon}
+                                    onPress={() => toggleFavorite(mensa.id)}
                                 >
-                                    <Text>Lieblings-Speisen</Text>
+                                    <Image
+                                        source={require('@/assets/images/mensen/icons8-heart-50-full.png')}
+                                        style={styles.heartImage}
+                                    />
                                 </TouchableOpacity>
+                            </View>
 
+                            <View style={styles.info}>
+                                <Text style={styles.mensaName}>{mensa.name}</Text>
 
+                                {mensa.address && (
+                                    <Text>
+                                        {mensa.address.street}
+                                        {'\n'}
+                                        {mensa.address.zipcode} {mensa.address.city}
+                                    </Text>
+                                )}
+                                {mensa.contactInfo?.phone && (
+                                    <Text>Telefon: {mensa.contactInfo.phone}</Text>
+                                )}
+                                {mensa.contactInfo?.email && (
+                                    <Text>E-Mail: {mensa.contactInfo.email}</Text>
+                                )}
+
+                                <View style={styles.buttonRow}>
+                                    <TouchableOpacity style={styles.button}>
+                                        <Text>Zum Speiseplan</Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        style={styles.button}
+                                        onPress={() =>
+                                            router.push({
+                                                pathname: '/saved/lieblingsspeisen/[mensaId]',
+                                                params: { mensaId: mensa.id },
+                                            })
+                                        }
+                                    >
+                                        <Text>Lieblings-Speisen</Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        style={styles.button}
+                                        onPress={() => handleRoute(mensa)}
+                                    >
+                                        <Text>Route hierhin</Text>
+                                    </TouchableOpacity>
+                                </View>
                             </View>
                         </View>
-                        <Text style={styles.mensaName}>{mensa.name}</Text>
-                    </View>
-                ))}
-            </ScrollView>
+                    ))}
+                </ScrollView>
+            )}
         </View>
     );
 }
@@ -84,14 +174,29 @@ const styles = StyleSheet.create({
     cardContainer: { paddingHorizontal: 10 },
     card: {
         backgroundColor: '#fff',
-        borderRadius: 10,
+        borderRadius: 12,
         padding: 10,
         marginBottom: 20,
         elevation: 2,
+        position: 'relative',
     },
-    image: { width: '100%', height: 150, borderRadius: 10 },
+    imageContainer: {
+        height: 150,
+        backgroundColor: '#f5f5f5',
+        justifyContent: 'center',
+        alignItems: 'center',
+        position: 'relative',
+        borderRadius: 10,
+        overflow: 'hidden',
+    },
+    image: { width: '100%', height: '100%' },
     info: { marginTop: 10 },
-    mensaName: { marginTop: 10, fontWeight: 'bold' },
+    mensaName: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 6,
+    },
     buttonRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -104,5 +209,21 @@ const styles = StyleSheet.create({
         borderColor: '#000',
         borderRadius: 5,
         marginBottom: 5,
+    },
+    heartIcon: {
+        position: 'absolute',
+        top: 10,
+        right: 10,
+        width: 30,
+        height: 30,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        borderRadius: 15,
+        zIndex: 10,
+    },
+    heartImage: {
+        width: 22,
+        height: 22,
     },
 });

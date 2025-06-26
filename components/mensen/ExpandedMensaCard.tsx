@@ -1,7 +1,14 @@
-import React, { useState } from 'react';
+// components/mensen/ExpandedMensaCard.tsx
+
+import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { getMensaImage } from '@/utils/getMensaImage';
+import {
+    isMensaSaved,
+    addMensaToSaved,
+    removeMensaFromSaved
+} from '@/lib/cache';
 
 interface ExpandedMensaCardProps {
     mensa: any;
@@ -21,6 +28,14 @@ export default function ExpandedMensaCard({
     const [isFavorite, setIsFavorite] = useState(false);
     const router = useRouter();
 
+    useEffect(() => {
+        const loadFavoriteStatus = async () => {
+            const saved = await isMensaSaved(mensa.id);
+            setIsFavorite(saved);
+        };
+        loadFavoriteStatus();
+    }, [mensa.id]);
+
     const handleRoute = () => {
         if (!mensa.address) return;
         const { street, zipcode, city } = mensa.address;
@@ -31,8 +46,18 @@ export default function ExpandedMensaCard({
         );
     };
 
-    const handleFavorite = () => {
-        setIsFavorite(!isFavorite);
+    const handleFavorite = async () => {
+        try {
+            if (isFavorite) {
+                await removeMensaFromSaved(mensa.id);
+                setIsFavorite(false);
+            } else {
+                await addMensaToSaved(mensa.id);
+                setIsFavorite(true);
+            }
+        } catch (error) {
+            console.error('Fehler beim Umschalten des Favoritenstatus:', error);
+        }
     };
 
     return (
@@ -95,15 +120,12 @@ export default function ExpandedMensaCard({
 
                         <TouchableOpacity
                             style={[styles.buttonBase, styles.buttonOutline]}
-                            onPress={() => {
-                                console.log('Navigiere zu Lieblingsspeisen:', mensa.id);
+                            onPress={() =>
                                 router.push({
                                     pathname: '/saved/lieblingsspeisen/[mensaId]',
                                     params: { mensaId: mensa.id },
-                                });
-
-
-                            }}
+                                })
+                            }
                         >
                             <Text style={styles.buttonTextDark}>Lieblings Speisen</Text>
                         </TouchableOpacity>
@@ -246,4 +268,3 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
 });
-

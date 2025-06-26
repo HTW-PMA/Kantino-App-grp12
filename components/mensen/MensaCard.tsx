@@ -1,6 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { getMensaImage } from '@/utils/getMensaImage';
+import {
+    isMensaSaved,
+    addMensaToSaved,
+    removeMensaFromSaved,
+} from '@/lib/cache';
 
 interface MensaCardProps {
     mensa: any;
@@ -11,9 +16,28 @@ interface MensaCardProps {
 export default function MensaCard({ mensa, onPress, onFavoritePress }: MensaCardProps) {
     const [isFavorite, setIsFavorite] = useState(false);
 
-    const handleFavorite = () => {
-        setIsFavorite(!isFavorite);
-        onFavoritePress?.(mensa);
+    useEffect(() => {
+        const checkFavorite = async () => {
+            const saved = await isMensaSaved(mensa.id);
+            setIsFavorite(saved);
+        };
+        checkFavorite();
+    }, [mensa.id]);
+
+    const handleFavorite = async () => {
+        try {
+            if (isFavorite) {
+                const success = await removeMensaFromSaved(mensa.id);
+                if (success) setIsFavorite(false);
+            } else {
+                const success = await addMensaToSaved(mensa.id);
+                if (success) setIsFavorite(true);
+            }
+
+            onFavoritePress?.(mensa); // optionaler Callback
+        } catch (error) {
+            console.error('Fehler beim Speichern der Favoriten:', error);
+        }
     };
 
     return (
