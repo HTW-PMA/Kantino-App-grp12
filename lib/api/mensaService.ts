@@ -1,4 +1,4 @@
-// services/mensaService.ts
+// lib/api/mensaService.ts
 import { BASE_URL, ENDPOINTS, API_KEY } from '@/lib/api/api';
 
 /**
