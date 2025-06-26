@@ -129,7 +129,15 @@ export default function SavedScreen() {
                                 )}
 
                                 <View style={styles.buttonRow}>
-                                    <TouchableOpacity style={styles.button}>
+                                    <TouchableOpacity
+                                        style={styles.button}
+                                        onPress={() =>
+                                            router.push({
+                                                pathname: '/speiseplan',
+                                                params: { mensaId: mensa.id },
+                                            })
+                                        }
+                                    >
                                         <Text>Zum Speiseplan</Text>
                                     </TouchableOpacity>
 

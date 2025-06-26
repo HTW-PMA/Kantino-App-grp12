@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Image, Platform } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import { useLocalSearchParams } from 'expo-router';
 import { fetchCanteens, fetchMenu } from '@/lib/api/mensaService';
 
-// Format für API-kompatibles Datum
 const formatDate = (date: Date) => date.toISOString().split('T')[0];
 const today = formatDate(new Date());
 
@@ -13,17 +13,11 @@ const getBadgeVisual = (badgeName: string): any => {
     if (name.includes('h2o')) return null;
 
     try {
-        if (name.includes('vegan')) {
-            return require('@/assets/images/speiseplan/vegan.png');
-        }
-        if (name.includes('bio') || name.includes('vegetarisch')) {
-            return require('@/assets/images/speiseplan/bio.png');
-        }
+        if (name.includes('vegan')) return require('@/assets/images/speiseplan/vegan.png');
+        if (name.includes('bio') || name.includes('vegetarisch')) return require('@/assets/images/speiseplan/bio.png');
         if (name.includes('co2_bewertung_a')) return require('@/assets/images/speiseplan/co2_green.png');
         if (name.includes('co2_bewertung_b')) return require('@/assets/images/speiseplan/co2_orange.png');
         if (name.includes('co2_bewertung_c')) return require('@/assets/images/speiseplan/co2_red.png');
-
-        // Emojis für Ampelpunkte
         if (name.includes('grüner ampelpunkt')) return '🟢';
         if (name.includes('gelber ampelpunkt')) return '🟡';
         if (name.includes('roter ampelpunkt')) return '🔴';
@@ -58,6 +52,7 @@ function BadgeIcon({ badge }: { badge: { name: string; description?: string } })
 }
 
 export default function SpeiseplanScreen() {
+    const { mensaId } = useLocalSearchParams();
     const [canteens, setCanteens] = useState<any[]>([]);
     const [selectedCanteen, setSelectedCanteen] = useState<string>('');
     const [selectedDate, setSelectedDate] = useState<string>(today);
@@ -68,11 +63,11 @@ export default function SpeiseplanScreen() {
         fetchCanteens()
             .then((data) => {
                 setCanteens(data);
-                const firstId = data[0]?.id || data[0]?._id || '';
-                setSelectedCanteen(firstId);
+                const fallbackId = data[0]?.id || data[0]?._id || '';
+                setSelectedCanteen((mensaId as string) || fallbackId);
             })
             .catch((e) => console.error('❌ Fehler beim Laden der Mensen:', e));
-    }, []);
+    }, [mensaId]);
 
     useEffect(() => {
         if (!selectedCanteen || !selectedDate) return;
@@ -166,16 +161,14 @@ export default function SpeiseplanScreen() {
                                 )}
 
                                 {meal.badges?.some((b: any) =>
-                                    !hasBadgeVisual(b.name) &&
-                                    !b.name.toLowerCase().includes('h2o')) && (
+                                    !hasBadgeVisual(b.name) && !b.name.toLowerCase().includes('h2o')) && (
                                     <Text style={styles.badgeText}>
                                         {meal.badges
                                             .filter((b: any) =>
                                                 !hasBadgeVisual(b.name) &&
                                                 !b.name.toLowerCase().includes('h2o'))
                                             .map((b: any) => b.name)
-                                            .join(', ')
-                                        }
+                                            .join(', ')}
                                     </Text>
                                 )}
 

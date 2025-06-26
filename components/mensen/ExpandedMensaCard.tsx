@@ -113,7 +113,12 @@ export default function ExpandedMensaCard({
                     <View style={styles.buttonContainer}>
                         <TouchableOpacity
                             style={[styles.buttonBase, styles.buttonPrimary]}
-                            onPress={() => router.push('/speiseplan')}
+                            onPress={() =>
+                                router.push({
+                                    pathname: '/speiseplan',
+                                    params: { mensaId: mensa.id },
+                                })
+                            }
                         >
                             <Text style={styles.buttonTextWhite}>Zum Speiseplan</Text>
                         </TouchableOpacity>
