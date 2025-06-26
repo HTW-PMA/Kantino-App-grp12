@@ -19,23 +19,17 @@ export default function ExpandedMensaCard({
                                               onRoute,
                                           }: ExpandedMensaCardProps) {
     const [isFavorite, setIsFavorite] = useState(false);
-
     const router = useRouter();
 
-    // Route-Funktion für Google Maps
     const handleRoute = () => {
         if (!mensa.address) return;
-
         const { street, zipcode, city } = mensa.address;
         const encodedAddress = encodeURIComponent(`${street}, ${zipcode} ${city}`);
-
         const url = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
-
         Linking.openURL(url).catch(err =>
             console.error('Fehler beim Öffnen von Google Maps:', err)
         );
     };
-
 
     const handleFavorite = () => {
         setIsFavorite(!isFavorite);
@@ -43,19 +37,13 @@ export default function ExpandedMensaCard({
 
     return (
         <View style={styles.expandedCard}>
-            {/* Zurück-Button */}
             <TouchableOpacity onPress={onBack} style={styles.backButton}>
                 <Text style={styles.backText}>✕</Text>
             </TouchableOpacity>
 
-            {/* Hauptinhalt: Bild links, Info rechts */}
             <View style={styles.contentRow}>
-                {/* Bildbereich mit Herz */}
                 <View style={styles.imageSection}>
-                    <Image
-                        source={getMensaImage(mensa.id)}
-                        style={styles.mensaImage}
-                    />
+                    <Image source={getMensaImage(mensa.id)} style={styles.mensaImage} />
                     <TouchableOpacity style={styles.heartIcon} onPress={handleFavorite}>
                         <Image
                             source={
@@ -68,7 +56,6 @@ export default function ExpandedMensaCard({
                     </TouchableOpacity>
                 </View>
 
-                {/* Infobereich */}
                 <View style={styles.infoSection}>
                     <View style={styles.textSection}>
                         <Text style={styles.mensaTitle}>{mensa.name}</Text>
@@ -98,7 +85,6 @@ export default function ExpandedMensaCard({
                         )}
                     </View>
 
-                    {/* Buttons */}
                     <View style={styles.buttonContainer}>
                         <TouchableOpacity
                             style={[styles.buttonBase, styles.buttonPrimary]}
@@ -109,7 +95,15 @@ export default function ExpandedMensaCard({
 
                         <TouchableOpacity
                             style={[styles.buttonBase, styles.buttonOutline]}
-                            onPress={() => router.push(`/saved/lieblingsspeisen/${mensa.id}`)}
+                            onPress={() => {
+                                console.log('Navigiere zu Lieblingsspeisen:', mensa.id);
+                                router.push({
+                                    pathname: '/saved/lieblingsspeisen/[mensaId]',
+                                    params: { mensaId: mensa.id },
+                                });
+
+
+                            }}
                         >
                             <Text style={styles.buttonTextDark}>Lieblings Speisen</Text>
                         </TouchableOpacity>
@@ -252,3 +246,4 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
 });
+
