@@ -29,7 +29,6 @@ export default function TabLayout() {
                     <CustomHeader
                         title={getTabTitle(route.name)}
                         showBack={route.name !== 'index'}
-                        onMenuPress={() => console.log('Menu pressed')}
                     />
                 ),
             }}

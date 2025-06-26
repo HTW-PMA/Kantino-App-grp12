@@ -1,4 +1,3 @@
-// components/CustomHeader.tsx
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -8,14 +7,12 @@ interface HeaderProps {
     title: string;
     showBack?: boolean;
     onBackPress?: () => void;
-    onMenuPress?: () => void;
 }
 
 const CustomHeader: React.FC<HeaderProps> = ({
                                                  title,
                                                  showBack = true,
-                                                 onBackPress,
-                                                 onMenuPress
+                                                 onBackPress
                                              }) => {
     const router = useRouter();
 
@@ -39,9 +36,8 @@ const CustomHeader: React.FC<HeaderProps> = ({
 
             <Text style={styles.title}>{title}</Text>
 
-            <TouchableOpacity onPress={onMenuPress}>
-                <Feather name="menu" size={24} color="limegreen" />
-            </TouchableOpacity>
+            {/* Rechte Seite leer, damit Titel zentriert bleibt */}
+            <View style={{ width: 24 }} />
         </View>
     );
 };
