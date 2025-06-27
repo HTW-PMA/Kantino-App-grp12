@@ -1,4 +1,5 @@
 // lib/cache.ts
+// AsyncStorage Persistent wrapper for caching data from the mensa API
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchCanteens, fetchMeals, fetchBadges, fetchAdditives, fetchMenu } from '@/lib/api/mensaService';
 
