@@ -11,7 +11,7 @@ import {
     ScrollView,
     Alert,
 } from 'react-native';
-import { storeName, getName } from '@/lib/cache';
+import { storeName, getName } from '@/lib/storage';
 import LocationPicker from '@/components/profil/LocationPicker';
 
 export default function ProfileScreen() {

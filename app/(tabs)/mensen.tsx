@@ -8,7 +8,7 @@ import {
     FlatList
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { fetchCanteensWithCache } from '@/lib/cache';
+import { fetchCanteensWithCache } from '@/lib/storage';
 import MensaCard from '@/components/mensen/MensaCard';
 import ExpandedMensaCard from '@/components/mensen/ExpandedMensaCard';
 import SearchBar from '@/components/mensen/SearchBar';

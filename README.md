@@ -48,3 +48,17 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+
+#### Mitschrift Datenbank
+Lokale Speicherung ohne mit Server zu kommunizieren
+-> Temporär, Persistent, Strukturiert, Sicher(Verschlüsselung)
+- Für Mensa APP 
+-> Wir benutzen Asynch Storage nur für Mensa-IDS und Mappings
+-> Für Bilder benutzen wir App Bundle, Bilder werden bei initialer Installation mitgeliefert
+## Wichtig daten müssen persistent sein
+
+Serverseitige Speicherung
+-> DB, Dateibasiert, Cache, Log, Synchrone Speicherung
+
+Für Pflichtanforderungen keine Backend Datenbank notwendig

@@ -19,7 +19,7 @@ import {
     removeMensaFromSaved,
     isMensaSaved,
     addMensaToSaved,
-} from '@/lib/cache';
+} from '@/lib/storage';
 import { getMensaImage } from '@/utils/getMensaImage';
 
 export default function SavedScreen() {

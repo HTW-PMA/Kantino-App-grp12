@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
-import { getName } from '@/lib/cache';
+import { getName } from '@/lib/storage';
 
 export default function WelcomeMessage() {
     const [userName, setUserName] = useState<string | null>(null);

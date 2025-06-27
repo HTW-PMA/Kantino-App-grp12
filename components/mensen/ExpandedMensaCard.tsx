@@ -8,7 +8,7 @@ import {
     isMensaSaved,
     addMensaToSaved,
     removeMensaFromSaved
-} from '@/lib/cache';
+} from '@/lib/storage';
 
 interface ExpandedMensaCardProps {
     mensa: any;
