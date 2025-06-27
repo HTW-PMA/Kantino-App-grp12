@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { getName } from '@/lib/storage';
 
 export default function WelcomeMessage() {
@@ -16,10 +17,17 @@ export default function WelcomeMessage() {
         }
     };
 
-    // Lädt Name nur einmal beim ersten Rendern
+    // Lädt Name beim ersten Rendern
     useEffect(() => {
         loadUserName();
     }, []);
+
+    // WICHTIG: Lädt Name erneut, wenn der Tab fokussiert wird
+    useFocusEffect(
+        React.useCallback(() => {
+            loadUserName();
+        }, [])
+    );
 
     return (
         <View style={styles.container}>

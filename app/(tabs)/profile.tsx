@@ -9,7 +9,6 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    Alert,
 } from 'react-native';
 import { storeName, getName } from '@/lib/storage';
 import LocationPicker from '@/components/profil/LocationPicker';
@@ -17,6 +16,7 @@ import LocationPicker from '@/components/profil/LocationPicker';
 export default function ProfileScreen() {
     const [name, setName] = useState('');
     const [location, setLocation] = useState('');
+    const [saveStatus, setSaveStatus] = useState(''); // 'saving', 'saved', ''
 
     useEffect(() => {
         const loadInitial = async () => {
@@ -28,8 +28,44 @@ export default function ProfileScreen() {
 
     const handleSave = async () => {
         if (name.trim()) {
-            await storeName(name.trim());
+            setSaveStatus('saving');
+
+            try {
+                await storeName(name.trim());
+                setSaveStatus('saved');
+
+                // Status nach 2 Sekunden zurücksetzen
+                setTimeout(() => {
+                    setSaveStatus('');
+                }, 2000);
+
+            } catch (error) {
+                setSaveStatus('error');
+                setTimeout(() => {
+                    setSaveStatus('');
+                }, 2000);
+            }
         }
+    };
+
+    const getSaveButtonStyle = () => {
+        if (saveStatus === 'saving') {
+            return [styles.saveButton, styles.saveButtonSaving];
+        }
+        if (saveStatus === 'saved') {
+            return [styles.saveButton, styles.saveButtonSaved];
+        }
+        if (saveStatus === 'error') {
+            return [styles.saveButton, styles.saveButtonError];
+        }
+        return styles.saveButton;
+    };
+
+    const getSaveButtonText = () => {
+        if (saveStatus === 'saving') return 'Speichere...';
+        if (saveStatus === 'saved') return '✓ Gespeichert';
+        if (saveStatus === 'error') return '✗ Fehler';
+        return 'Speichern';
     };
 
     return (
@@ -60,8 +96,14 @@ export default function ProfileScreen() {
 
                     <LocationPicker value={location} onChange={setLocation} />
 
-                    <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-                        <Text style={styles.saveButtonText}>Speichern</Text>
+                    <TouchableOpacity
+                        style={getSaveButtonStyle()}
+                        onPress={handleSave}
+                        disabled={saveStatus === 'saving'}
+                    >
+                        <Text style={styles.saveButtonText}>
+                            {getSaveButtonText()}
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -123,6 +165,15 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         alignItems: 'center',
         marginTop: 10,
+    },
+    saveButtonSaving: {
+        backgroundColor: '#94a3b8', // Grau während Speichern
+    },
+    saveButtonSaved: {
+        backgroundColor: '#662b60', // Grün für Erfolg
+    },
+    saveButtonError: {
+        backgroundColor: '#ef4444', // Rot für Fehler
     },
     saveButtonText: {
         color: '#fff',
