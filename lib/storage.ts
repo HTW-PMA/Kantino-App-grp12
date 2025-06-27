@@ -3,6 +3,26 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchCanteens, fetchMeals, fetchBadges, fetchAdditives, fetchMenu } from '@/lib/api/mensaService';
 
+// Interface für erweiterte Lieblingsspeisen
+interface FavoriteMealWithContext {
+    id: string;
+    name: string;
+    category?: string;
+    badges?: string[];
+    additives?: string[];
+    prices?: {
+        students?: number;
+        employees?: number;
+        guests?: number;
+    };
+    // Kontext-Informationen
+    mensaId: string;
+    mensaName: string;
+    dateAdded: string; // ISO string
+    dayOfWeek: string;
+    originalDate: string; // Das Datum für das der Speiseplan war
+}
+
 const CACHE_KEYS = {
     canteens: 'canteens',
     meals: 'meals',
@@ -13,8 +33,10 @@ const CACHE_KEYS = {
     savedMensen: 'savedMensen',
     favoriteMeals: 'favoriteMeals',
     selectedMensa: 'selectedMensa',
+    favoriteMealsWithContext: 'favoriteMealsWithContext', // Neu
 };
 
+// Api-Daten abrufen und in AsyncStorage cachen
 export async function fetchCanteensWithCache(): Promise<any> {
     try {
         const data = await fetchCanteens();
@@ -52,7 +74,7 @@ export async function fetchMealsWithCache() {
     }
 }
 
-// User-Name Funktionen
+// Username Funktionen
 export const storeName = async (name: string): Promise<void> => {
     try {
         await AsyncStorage.setItem(CACHE_KEYS.userName, name);
@@ -79,7 +101,7 @@ export const removeName = async (): Promise<void> => {
     }
 };
 
-// Gespeicherte Mensen Funktionen
+// Gespeicherte Mensen-Funktionen
 export const getSavedMensen = async (): Promise<string[]> => {
     try {
         const saved = await AsyncStorage.getItem(CACHE_KEYS.savedMensen);
@@ -128,7 +150,7 @@ export const isMensaSaved = async (mensaId: string): Promise<boolean> => {
     }
 };
 
-// Lieblings-Speisen Funktionen
+// Alte lieblingsspeisen-Funktionen
 export const getFavoriteMeals = async (): Promise<string[]> => {
     try {
         const favorites = await AsyncStorage.getItem(CACHE_KEYS.favoriteMeals);
@@ -177,7 +199,132 @@ export const isMealFavorite = async (mealId: string): Promise<boolean> => {
     }
 };
 
-// Mensa-Auswahl Funktionen
+// Erweiterte Lieblingsspeisen-Funktionen mit Kontext
+export const getFavoriteMealsWithContext = async (): Promise<FavoriteMealWithContext[]> => {
+    try {
+        const favorites = await AsyncStorage.getItem(CACHE_KEYS.favoriteMealsWithContext);
+        return favorites ? JSON.parse(favorites) : [];
+    } catch (error) {
+        console.error('Error getting favorite meals with context:', error);
+        return [];
+    }
+};
+
+export const addMealToFavoritesWithContext = async (
+    meal: {
+        id: string;
+        name: string;
+        category?: string;
+        badges?: string[];
+        additives?: string[];
+        prices?: {
+            students?: number;
+            employees?: number;
+            guests?: number;
+        };
+    },
+    context: {
+        mensaId: string;
+        mensaName: string;
+        originalDate: string; // Das Datum für das der Speiseplan war (z.B. "2025-06-25")
+    }
+): Promise<boolean> => {
+    try {
+        const existingFavorites = await getFavoriteMealsWithContext();
+
+        // Prüfe ob bereits vorhanden
+        const isAlreadyFavorite = existingFavorites.some(fav => fav.id === meal.id);
+        if (isAlreadyFavorite) {
+            return false; // Schon vorhanden
+        }
+
+        // Erstelle erweiterte Meal-Daten
+        const now = new Date();
+        const dayNames = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+
+        const favoriteMealWithContext: FavoriteMealWithContext = {
+            ...meal,
+            mensaId: context.mensaId,
+            mensaName: context.mensaName,
+            dateAdded: now.toISOString(),
+            dayOfWeek: dayNames[now.getDay()],
+            originalDate: context.originalDate,
+        };
+
+        const updatedFavorites = [...existingFavorites, favoriteMealWithContext];
+        await AsyncStorage.setItem(CACHE_KEYS.favoriteMealsWithContext, JSON.stringify(updatedFavorites));
+
+        return true;
+    } catch (error) {
+        console.error('Error adding meal to favorites with context:', error);
+        return false;
+    }
+};
+
+export const removeMealFromFavoritesWithContext = async (mealId: string): Promise<boolean> => {
+    try {
+        const existingFavorites = await getFavoriteMealsWithContext();
+        const updatedFavorites = existingFavorites.filter(fav => fav.id !== mealId);
+
+        await AsyncStorage.setItem(CACHE_KEYS.favoriteMealsWithContext, JSON.stringify(updatedFavorites));
+        return true;
+    } catch (error) {
+        console.error('Error removing meal from favorites with context:', error);
+        return false;
+    }
+};
+
+export const isMealFavoriteWithContext = async (mealId: string): Promise<boolean> => {
+    try {
+        const favorites = await getFavoriteMealsWithContext();
+        return favorites.some(fav => fav.id === mealId);
+    } catch (error) {
+        console.error('Error checking if meal is favorite with context:', error);
+        return false;
+    }
+};
+
+// Hilfsfunktionen für Filterung
+export const getFavoriteMealsByCategory = async (category?: string): Promise<FavoriteMealWithContext[]> => {
+    try {
+        const allFavorites = await getFavoriteMealsWithContext();
+        if (!category || category === 'all') {
+            return allFavorites;
+        }
+        return allFavorites.filter(meal => meal.category === category);
+    } catch (error) {
+        console.error('Error filtering favorite meals by category:', error);
+        return [];
+    }
+};
+
+export const getFavoriteMealsByMensa = async (mensaId?: string): Promise<FavoriteMealWithContext[]> => {
+    try {
+        const allFavorites = await getFavoriteMealsWithContext();
+        if (!mensaId) {
+            return allFavorites;
+        }
+        return allFavorites.filter(meal => meal.mensaId === mensaId);
+    } catch (error) {
+        console.error('Error filtering favorite meals by mensa:', error);
+        return [];
+    }
+};
+
+export const getFavoriteCategories = async (): Promise<string[]> => {
+    try {
+        const favorites = await getFavoriteMealsWithContext();
+        const categories = favorites
+            .map(meal => meal.category)
+            .filter((category): category is string => Boolean(category));
+        return [...new Set(categories)].sort();
+    } catch (error) {
+        console.error('Error getting favorite categories:', error);
+        return [];
+    }
+};
+
+// MENSA Auswahl Funktionen
 export const storeSelectedMensa = async (mensaId: string): Promise<void> => {
     try {
         await AsyncStorage.setItem(CACHE_KEYS.selectedMensa, mensaId);
@@ -204,3 +351,5 @@ export const removeSelectedMensa = async (): Promise<void> => {
         console.error('Error removing selected mensa:', error);
     }
 };
+
+export type { FavoriteMealWithContext };

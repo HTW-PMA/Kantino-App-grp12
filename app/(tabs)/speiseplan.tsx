@@ -1,9 +1,14 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Image, Platform } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Image, Platform, TouchableOpacity, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { fetchCanteens, fetchMenu } from '@/lib/api/mensaService';
 import { getSelectedMensa } from '@/lib/storage';
+import {
+    addMealToFavoritesWithContext,
+    removeMealFromFavoritesWithContext,
+    isMealFavoriteWithContext
+} from '@/lib/storage';
 
 const formatDate = (date: Date) => date.toISOString().split('T')[0];
 const today = formatDate(new Date());
@@ -145,6 +150,113 @@ function BadgeIcon({ badge }: { badge: { name: string; description?: string } })
     );
 }
 
+// NEU: Like-Button Komponente
+function LikeButton({
+                        meal,
+                        mensaInfo
+                    }: {
+    meal: any;
+    mensaInfo: { mensaId: string; mensaName: string; date: string; }
+}) {
+    const [isFavorite, setIsFavorite] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+        const checkFavoriteStatus = async () => {
+            try {
+                const favoriteStatus = await isMealFavoriteWithContext(meal.id || meal.name);
+                setIsFavorite(favoriteStatus);
+            } catch (error) {
+                console.error('Error checking favorite status:', error);
+            }
+        };
+
+        checkFavoriteStatus();
+    }, [meal.id, meal.name]);
+
+    // Prüfe Favoriten-Status auch bei Tab-Fokus
+    useFocusEffect(
+        useCallback(() => {
+            const recheckFavoriteStatus = async () => {
+                try {
+                    const favoriteStatus = await isMealFavoriteWithContext(meal.id || meal.name);
+                    setIsFavorite(favoriteStatus);
+                } catch (error) {
+                    console.error('Error rechecking favorite status:', error);
+                }
+            };
+
+            recheckFavoriteStatus();
+        }, [meal.id, meal.name])
+    );
+
+    const handleToggleFavorite = async () => {
+        setIsLoading(true);
+        try {
+            const mealToSave = {
+                id: meal.id || meal.name || `meal-${Date.now()}`,
+                name: meal.name,
+                category: meal.category,
+                badges: meal.badges?.map((b: any) => b.name) || [],
+                additives: meal.additives?.map((a: any) => a.text) || [],
+                prices: meal.prices?.length > 0 ? {
+                    students: meal.prices.find((p: any) => p.priceType?.toLowerCase().includes('stud'))?.price,
+                    employees: meal.prices.find((p: any) =>
+                        p.priceType?.toLowerCase().includes('angestellte') ||
+                        p.priceType?.toLowerCase().includes('mitarb') ||
+                        p.priceType?.toLowerCase().includes('employee')
+                    )?.price,
+                    guests: meal.prices.find((p: any) => p.priceType?.toLowerCase().includes('gäst'))?.price,
+                } : undefined,
+            };
+
+            if (isFavorite) {
+                // Aus Favoriten entfernen
+                const success = await removeMealFromFavoritesWithContext(mealToSave.id);
+                if (success) {
+                    setIsFavorite(false);
+                }
+            } else {
+                // Zu Favoriten hinzufügen
+                const success = await addMealToFavoritesWithContext(mealToSave, {
+                    mensaId: mensaInfo.mensaId,
+                    mensaName: mensaInfo.mensaName,
+                    originalDate: mensaInfo.date,
+                });
+
+                if (success) {
+                    setIsFavorite(true);
+                }
+            }
+        } catch (error) {
+            console.error('Error toggling favorite:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <TouchableOpacity
+            style={styles.likeButton}
+            onPress={handleToggleFavorite}
+            disabled={isLoading}
+        >
+            {isLoading ? (
+                <Text style={styles.loadingText}>⏳</Text>
+            ) : (
+                <Image
+                    source={
+                        isFavorite
+                            ? require('@/assets/images/mensen/icons8-heart-50-full.png')
+                            : require('@/assets/images/mensen/icons8-heart-50-half.png')
+                    }
+                    style={styles.heartImage}
+                />
+            )}
+        </TouchableOpacity>
+    );
+}
+
 export default function SpeiseplanScreen() {
     const { mensaId } = useLocalSearchParams();
     const [canteens, setCanteens] = useState<any[]>([]);
@@ -176,6 +288,19 @@ export default function SpeiseplanScreen() {
         React.useCallback(() => {
             const loadSelectedMensa = async () => {
                 try {
+                    // Wenn eine mensaId als Parameter übergeben wurde, verwende diese
+                    if (mensaId && canteens.length > 0) {
+                        const mensaExists = canteens.find(c =>
+                            (c.id === mensaId) || (c._id === mensaId)
+                        );
+                        if (mensaExists) {
+                            setSelectedCanteen(mensaId as string);
+                            console.log('Navigation Parameter Mensa geladen:', mensaId);
+                            return; // Früher return - verwende nicht die gespeicherte Mensa
+                        }
+                    }
+
+                    // Nur wenn keine mensaId Parameter da ist, verwende gespeicherte Mensa
                     const savedMensaId = await getSelectedMensa();
                     if (savedMensaId && canteens.length > 0) {
                         const mensaExists = canteens.find(c =>
@@ -195,7 +320,7 @@ export default function SpeiseplanScreen() {
             if (canteens.length > 0) {
                 loadSelectedMensa();
             }
-        }, [canteens])
+        }, [canteens, mensaId])
     );
 
     // Laden des Menüs (nur wenn Mensa offen ist)
@@ -236,6 +361,14 @@ export default function SpeiseplanScreen() {
         groups[cat] = [...(groups[cat] || []), meal];
         return groups;
     }, {});
+
+    // NEU: Mensa-Info für Like-Button
+    const selectedMensaData = canteens.find(c => (c.id === selectedCanteen) || (c._id === selectedCanteen));
+    const mensaInfo = {
+        mensaId: selectedCanteen,
+        mensaName: selectedMensaData?.name || 'Unbekannte Mensa',
+        date: selectedDate,
+    };
 
     return (
         <ScrollView style={styles.container}>
@@ -311,19 +444,23 @@ export default function SpeiseplanScreen() {
                             <View key={`${meal.id || meal.name}-${i}`} style={styles.mealBox}>
                                 <View style={styles.titleRow}>
                                     <Text style={styles.mealName}>{meal.name}</Text>
-                                    {meal.badges?.length > 0 && (
-                                        <View style={styles.badgeRow}>
-                                            {meal.badges
-                                                .filter((badge: any) =>
-                                                    hasBadgeVisual(badge.name) &&
-                                                    !badge.name.toLowerCase().includes('h2o')
-                                                )
-                                                .slice(0, 5)
-                                                .map((badge: any, index: number) => (
-                                                    <BadgeIcon key={index} badge={badge} />
-                                                ))}
-                                        </View>
-                                    )}
+                                    <View style={styles.rightSection}>
+                                        {/* NEU: Like-Button hinzugefügt */}
+                                        <LikeButton meal={meal} mensaInfo={mensaInfo} />
+                                        {meal.badges?.length > 0 && (
+                                            <View style={styles.badgeRow}>
+                                                {meal.badges
+                                                    .filter((badge: any) =>
+                                                        hasBadgeVisual(badge.name) &&
+                                                        !badge.name.toLowerCase().includes('h2o')
+                                                    )
+                                                    .slice(0, 5)
+                                                    .map((badge: any, index: number) => (
+                                                        <BadgeIcon key={index} badge={badge} />
+                                                    ))}
+                                            </View>
+                                        )}
+                                    </View>
                                 </View>
 
                                 {meal.prices?.length > 0 && (
@@ -459,6 +596,32 @@ const styles = StyleSheet.create({
         marginRight: 12,
         lineHeight: 22,
     },
+    // NEU: Styles für Like-Button und Right-Section
+    rightSection: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 8,
+    },
+    likeButton: {
+        width: 32,
+        height: 32,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        borderRadius: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    heartImage: {
+        width: 22,
+        height: 22,
+    },
+    loadingText: {
+        fontSize: 16,
+    },
     priceText: {
         fontSize: 14,
         color: '#495057',
@@ -526,4 +689,4 @@ const styles = StyleSheet.create({
         color: '#333',
         justifyContent: 'center',
     },
-})
+});
