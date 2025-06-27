@@ -8,10 +8,54 @@ import { getSelectedMensa } from '@/lib/storage';
 const formatDate = (date: Date) => date.toISOString().split('T')[0];
 const today = formatDate(new Date());
 
+// Intelligente Kategorien-Sortierung basierend auf Inhalt
+const sortCategories = (groupedMeals: any) => {
+    const categories = Object.keys(groupedMeals);
+
+    // Basierend auf Kategorie-Typ
+    const sortedCategories = categories.sort((a, b) => {
+        const getPriority = (category: string) => {
+            const cat = category.toLowerCase();
+
+            if (cat.includes('aktion') || cat.includes('angebot')) return 1;
+
+            if (cat.includes('essen') || cat.includes('hauptgericht')) return 2;
+
+            if (cat.includes('salat')) return 3;
+
+            if (cat.includes('suppe')) return 4;
+
+            if (cat.includes('vorspeise')) return 5;
+
+            if (cat.includes('dessert') || cat.includes('nachspeise')) return 6;
+
+            if (cat.includes('beilage')) return 7;
+
+            if (cat.includes('getränk')) return 8;
+
+            if (cat.includes('snack')) return 9;
+
+            return 10;
+        };
+
+        const priorityA = getPriority(a);
+        const priorityB = getPriority(b);
+
+        // Wenn gleiche Priorität, alphabetisch sortieren
+        if (priorityA === priorityB) {
+            return a.localeCompare(b);
+        }
+
+        return priorityA - priorityB;
+    });
+
+    return sortedCategories;
+};
+
 // Generiere die nächsten 7 Tage mit Wochentagen und Status
 const getNext7DaysWithStatus = () => {
     const dates = [];
-    const weekdays = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+    const weekdays = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 
     for (let i = 0; i < 7; i++) {
         const date = new Date(Date.now() + i * 86400000);
@@ -37,16 +81,24 @@ const getNext7DaysWithStatus = () => {
 const getDateLabel = (dateInfo: any) => {
     const { weekday, date, isOpen, dayIndex } = dateInfo;
 
-    let prefix = '';
-    if (dayIndex === 0) prefix = 'Heute, ';
+    // Datum im Format DD.MM
+    const dateObj = new Date(date);
+    const day = dateObj.getDate().toString().padStart(2, '0');
+    const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+    const shortDate = `${day}.${month}`;
 
-    const baseLabel = `${prefix}${weekday} (${date})`;
-
-    if (!isOpen) {
-        return `${baseLabel} - Geschlossen`;
+    let label = '';
+    if (dayIndex === 0) {
+        label = `Heute, ${weekday} ${shortDate}`;
+    } else {
+        label = `${weekday} ${shortDate}`;
     }
 
-    return baseLabel;
+    if (!isOpen) {
+        return `${label} - Geschlossen`;
+    }
+
+    return label;
 };
 
 // Badge: Icon- oder Emoji-Zuordnung
@@ -248,56 +300,60 @@ export default function SpeiseplanScreen() {
                 </View>
             )}
 
-            {/* Menü anzeigen */}
-            {!isMensaClosed && Object.entries(groupedMeals).map(([category, meals]) => (
-                <View key={category} style={styles.category}>
-                    <Text style={styles.categoryTitle}>{category}</Text>
-                    {meals.map((meal: any, i: number) => (
-                        <View key={`${meal.id || meal.name}-${i}`} style={styles.mealBox}>
-                            <View style={styles.titleRow}>
-                                <Text style={styles.mealName}>{meal.name}</Text>
-                                {meal.badges?.length > 0 && (
-                                    <View style={styles.badgeRow}>
+            {/* Menü anzeigen mit sortierter Reihenfolge */}
+            {!isMensaClosed && (() => {
+                const sortedCategories = sortCategories(groupedMeals);
+
+                return sortedCategories.map((category) => (
+                    <View key={category} style={styles.category}>
+                        <Text style={styles.categoryTitle}>{category}</Text>
+                        {groupedMeals[category].map((meal: any, i: number) => (
+                            <View key={`${meal.id || meal.name}-${i}`} style={styles.mealBox}>
+                                <View style={styles.titleRow}>
+                                    <Text style={styles.mealName}>{meal.name}</Text>
+                                    {meal.badges?.length > 0 && (
+                                        <View style={styles.badgeRow}>
+                                            {meal.badges
+                                                .filter((badge: any) =>
+                                                    hasBadgeVisual(badge.name) &&
+                                                    !badge.name.toLowerCase().includes('h2o')
+                                                )
+                                                .slice(0, 5)
+                                                .map((badge: any, index: number) => (
+                                                    <BadgeIcon key={index} badge={badge} />
+                                                ))}
+                                        </View>
+                                    )}
+                                </View>
+
+                                {meal.prices?.length > 0 && (
+                                    <Text style={styles.priceText}>
+                                        {meal.prices.map((p: any) => `${p.priceType}: ${p.price}€`).join(' / ')}
+                                    </Text>
+                                )}
+
+                                {meal.badges?.some((b: any) =>
+                                    !hasBadgeVisual(b.name) && !b.name.toLowerCase().includes('h2o')) && (
+                                    <Text style={styles.badgeText}>
                                         {meal.badges
-                                            .filter((badge: any) =>
-                                                hasBadgeVisual(badge.name) &&
-                                                !badge.name.toLowerCase().includes('h2o')
-                                            )
-                                            .slice(0, 5)
-                                            .map((badge: any, index: number) => (
-                                                <BadgeIcon key={index} badge={badge} />
-                                            ))}
-                                    </View>
+                                            .filter((b: any) =>
+                                                !hasBadgeVisual(b.name) &&
+                                                !b.name.toLowerCase().includes('h2o'))
+                                            .map((b: any) => b.name)
+                                            .join(', ')}
+                                    </Text>
+                                )}
+
+                                {meal.additives?.length > 0 && (
+                                    <Text style={styles.additives}>
+                                        Zusatzstoffe: {meal.additives.map((a: any) => a.text).join(', ')}
+                                    </Text>
                                 )}
                             </View>
-
-                            {meal.prices?.length > 0 && (
-                                <Text style={styles.priceText}>
-                                    {meal.prices.map((p: any) => `${p.priceType}: ${p.price}€`).join(' / ')}
-                                </Text>
-                            )}
-
-                            {meal.badges?.some((b: any) =>
-                                !hasBadgeVisual(b.name) && !b.name.toLowerCase().includes('h2o')) && (
-                                <Text style={styles.badgeText}>
-                                    {meal.badges
-                                        .filter((b: any) =>
-                                            !hasBadgeVisual(b.name) &&
-                                            !b.name.toLowerCase().includes('h2o'))
-                                        .map((b: any) => b.name)
-                                        .join(', ')}
-                                </Text>
-                            )}
-
-                            {meal.additives?.length > 0 && (
-                                <Text style={styles.additives}>
-                                    Zusatzstoffe: {meal.additives.map((a: any) => a.text).join(', ')}
-                                </Text>
-                            )}
-                        </View>
-                    ))}
-                </View>
-            ))}
+                        ))}
+                    </View>
+                ));
+            })()}
         </ScrollView>
     );
 }
@@ -470,4 +526,4 @@ const styles = StyleSheet.create({
         color: '#333',
         justifyContent: 'center',
     },
-});
+})
