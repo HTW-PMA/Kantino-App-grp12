@@ -1,11 +1,53 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Image, Platform } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { fetchCanteens, fetchMenu } from '@/lib/api/mensaService';
+import { getSelectedMensa } from '@/lib/storage';
 
 const formatDate = (date: Date) => date.toISOString().split('T')[0];
 const today = formatDate(new Date());
+
+// Generiere die nächsten 7 Tage mit Wochentagen und Status
+const getNext7DaysWithStatus = () => {
+    const dates = [];
+    const weekdays = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+
+    for (let i = 0; i < 7; i++) {
+        const date = new Date(Date.now() + i * 86400000);
+        const dateString = formatDate(date);
+        const dayOfWeek = date.getDay();
+        const weekdayName = weekdays[dayOfWeek];
+
+        // Mensa ist Mo-Fr geöffnet (1-5), Sa+So geschlossen (0,6)
+        const isOpen = dayOfWeek >= 1 && dayOfWeek <= 5;
+
+        dates.push({
+            date: dateString,
+            weekday: weekdayName,
+            isOpen: isOpen,
+            dayIndex: i
+        });
+    }
+
+    return dates;
+};
+
+// Formatiere Label mit Wochentag und Datum
+const getDateLabel = (dateInfo: any) => {
+    const { weekday, date, isOpen, dayIndex } = dateInfo;
+
+    let prefix = '';
+    if (dayIndex === 0) prefix = 'Heute, ';
+
+    const baseLabel = `${prefix}${weekday} (${date})`;
+
+    if (!isOpen) {
+        return `${baseLabel} - Geschlossen`;
+    }
+
+    return baseLabel;
+};
 
 // Badge: Icon- oder Emoji-Zuordnung
 const getBadgeVisual = (badgeName: string): any => {
@@ -59,6 +101,14 @@ export default function SpeiseplanScreen() {
     const [menu, setMenu] = useState<any[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
 
+    // Generiere die nächsten 7 Tage mit Status
+    const availableDates = getNext7DaysWithStatus();
+
+    // Finde aktuell ausgewähltes Datum-Info
+    const selectedDateInfo = availableDates.find(d => d.date === selectedDate);
+    const isMensaClosed = selectedDateInfo ? !selectedDateInfo.isOpen : false;
+
+    // Laden der Mensen und Vorauswahl
     useEffect(() => {
         fetchCanteens()
             .then((data) => {
@@ -69,8 +119,44 @@ export default function SpeiseplanScreen() {
             .catch((e) => console.error('❌ Fehler beim Laden der Mensen:', e));
     }, [mensaId]);
 
+    // Laden der gespeicherten Mensa bei Tab-Fokus
+    useFocusEffect(
+        React.useCallback(() => {
+            const loadSelectedMensa = async () => {
+                try {
+                    const savedMensaId = await getSelectedMensa();
+                    if (savedMensaId && canteens.length > 0) {
+                        const mensaExists = canteens.find(c =>
+                            (c.id === savedMensaId) || (c._id === savedMensaId)
+                        );
+
+                        if (mensaExists) {
+                            setSelectedCanteen(savedMensaId);
+                            console.log('Gespeicherte Mensa geladen:', savedMensaId);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Fehler beim Laden der gespeicherten Mensa:', error);
+                }
+            };
+
+            if (canteens.length > 0) {
+                loadSelectedMensa();
+            }
+        }, [canteens])
+    );
+
+    // Laden des Menüs (nur wenn Mensa offen ist)
     useEffect(() => {
         if (!selectedCanteen || !selectedDate) return;
+
+        // Wenn Mensa geschlossen ist, kein API-Call
+        if (isMensaClosed) {
+            setMenu([]);
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
 
         fetchMenu(selectedCanteen, selectedDate)
@@ -91,7 +177,7 @@ export default function SpeiseplanScreen() {
                 setMenu([]);
             })
             .finally(() => setLoading(false));
-    }, [selectedCanteen, selectedDate]);
+    }, [selectedCanteen, selectedDate, isMensaClosed]);
 
     const groupedMeals = menu.reduce((groups: any, meal: any) => {
         const cat = meal.category || 'Sonstiges';
@@ -120,68 +206,98 @@ export default function SpeiseplanScreen() {
                     onValueChange={setSelectedDate}
                     style={styles.picker}
                 >
-                    {[0, 1, 2].map((offset) => {
-                        const date = formatDate(new Date(Date.now() + offset * 86400000));
-                        return <Picker.Item key={date} label={date} value={date} />;
-                    })}
+                    {availableDates.map((dateInfo) => (
+                        <Picker.Item
+                            key={dateInfo.date}
+                            label={getDateLabel(dateInfo)}
+                            value={dateInfo.date}
+                            enabled={dateInfo.isOpen}
+                            color={dateInfo.isOpen ? '#333' : '#dc3545'}
+                        />
+                    ))}
                 </Picker>
             </View>
 
+            {/* Wenn Mensa geschlossen ist */}
+            {isMensaClosed && (
+                <View style={styles.closedContainer}>
+                    <Text style={styles.closedIcon}>🔒</Text>
+                    <Text style={styles.closedTitle}>Mensa geschlossen</Text>
+                    <Text style={styles.closedSubtitle}>
+                        Am {selectedDateInfo?.weekday} ist die Mensa geschlossen.
+                    </Text>
+                    <Text style={styles.closedHint}>
+                        Die meisten Mensen haben Mo-Fr geöffnet.
+                    </Text>
+                </View>
+            )}
+
+            {/* Loading Indicator */}
             {loading && <ActivityIndicator size="large" color="#67B32D" />}
 
-            {Object.entries(groupedMeals).length === 0 && !loading ? (
-                <Text style={styles.info}>Kein Menü verfügbar für diese Auswahl.</Text>
-            ) : (
-                Object.entries(groupedMeals).map(([category, meals]) => (
-                    <View key={category} style={styles.category}>
-                        <Text style={styles.categoryTitle}>{category}</Text>
-                        {meals.map((meal: any, i: number) => (
-                            <View key={`${meal.id || meal.name}-${i}`} style={styles.mealBox}>
-                                <View style={styles.titleRow}>
-                                    <Text style={styles.mealName}>{meal.name}</Text>
-                                    {meal.badges?.length > 0 && (
-                                        <View style={styles.badgeRow}>
-                                            {meal.badges
-                                                .filter((badge: any) =>
-                                                    hasBadgeVisual(badge.name) &&
-                                                    !badge.name.toLowerCase().includes('h2o')
-                                                )
-                                                .slice(0, 5)
-                                                .map((badge: any, index: number) => (
-                                                    <BadgeIcon key={index} badge={badge} />
-                                                ))}
-                                        </View>
-                                    )}
-                                </View>
+            {/* Wenn keine Gerichte verfügbar sind (aber Mensa offen) */}
+            {!isMensaClosed && Object.entries(groupedMeals).length === 0 && !loading && (
+                <View style={styles.noMenuContainer}>
+                    <Text style={styles.noMenuTitle}>Kein Menü verfügbar</Text>
+                    <Text style={styles.noMenuSubtitle}>
+                        Für {selectedDateInfo?.weekday} ({selectedDate}) ist leider kein Speiseplan verfügbar.
+                    </Text>
+                    <Text style={styles.noMenuHint}>
+                        💡 Versuche ein anderes Datum oder eine andere Mensa
+                    </Text>
+                </View>
+            )}
 
-                                {meal.prices?.length > 0 && (
-                                    <Text style={styles.priceText}>
-                                        {meal.prices.map((p: any) => `${p.priceType}: ${p.price}€`).join(' / ')}
-                                    </Text>
-                                )}
-
-                                {meal.badges?.some((b: any) =>
-                                    !hasBadgeVisual(b.name) && !b.name.toLowerCase().includes('h2o')) && (
-                                    <Text style={styles.badgeText}>
+            {/* Menü anzeigen */}
+            {!isMensaClosed && Object.entries(groupedMeals).map(([category, meals]) => (
+                <View key={category} style={styles.category}>
+                    <Text style={styles.categoryTitle}>{category}</Text>
+                    {meals.map((meal: any, i: number) => (
+                        <View key={`${meal.id || meal.name}-${i}`} style={styles.mealBox}>
+                            <View style={styles.titleRow}>
+                                <Text style={styles.mealName}>{meal.name}</Text>
+                                {meal.badges?.length > 0 && (
+                                    <View style={styles.badgeRow}>
                                         {meal.badges
-                                            .filter((b: any) =>
-                                                !hasBadgeVisual(b.name) &&
-                                                !b.name.toLowerCase().includes('h2o'))
-                                            .map((b: any) => b.name)
-                                            .join(', ')}
-                                    </Text>
-                                )}
-
-                                {meal.additives?.length > 0 && (
-                                    <Text style={styles.additives}>
-                                        Zusatzstoffe: {meal.additives.map((a: any) => a.text).join(', ')}
-                                    </Text>
+                                            .filter((badge: any) =>
+                                                hasBadgeVisual(badge.name) &&
+                                                !badge.name.toLowerCase().includes('h2o')
+                                            )
+                                            .slice(0, 5)
+                                            .map((badge: any, index: number) => (
+                                                <BadgeIcon key={index} badge={badge} />
+                                            ))}
+                                    </View>
                                 )}
                             </View>
-                        ))}
-                    </View>
-                ))
-            )}
+
+                            {meal.prices?.length > 0 && (
+                                <Text style={styles.priceText}>
+                                    {meal.prices.map((p: any) => `${p.priceType}: ${p.price}€`).join(' / ')}
+                                </Text>
+                            )}
+
+                            {meal.badges?.some((b: any) =>
+                                !hasBadgeVisual(b.name) && !b.name.toLowerCase().includes('h2o')) && (
+                                <Text style={styles.badgeText}>
+                                    {meal.badges
+                                        .filter((b: any) =>
+                                            !hasBadgeVisual(b.name) &&
+                                            !b.name.toLowerCase().includes('h2o'))
+                                        .map((b: any) => b.name)
+                                        .join(', ')}
+                                </Text>
+                            )}
+
+                            {meal.additives?.length > 0 && (
+                                <Text style={styles.additives}>
+                                    Zusatzstoffe: {meal.additives.map((a: any) => a.text).join(', ')}
+                                </Text>
+                            )}
+                        </View>
+                    ))}
+                </View>
+            ))}
         </ScrollView>
     );
 }
@@ -192,10 +308,69 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         padding: 10
     },
-    info: {
-        marginTop: 20,
+    closedContainer: {
+        marginTop: 40,
+        marginHorizontal: 20,
+        padding: 32,
+        backgroundColor: '#fff3cd',
+        borderRadius: 12,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#ffeaa7',
+    },
+    closedIcon: {
+        fontSize: 48,
+        marginBottom: 16,
+    },
+    closedTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#856404',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    closedSubtitle: {
         fontSize: 16,
-        color: 'gray'
+        color: '#856404',
+        textAlign: 'center',
+        marginBottom: 12,
+        lineHeight: 22,
+    },
+    closedHint: {
+        fontSize: 14,
+        color: '#6c757d',
+        textAlign: 'center',
+        fontStyle: 'italic',
+    },
+    noMenuContainer: {
+        marginTop: 40,
+        marginHorizontal: 20,
+        padding: 24,
+        backgroundColor: '#f8f9fa',
+        borderRadius: 12,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#e9ecef',
+    },
+    noMenuTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#495057',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    noMenuSubtitle: {
+        fontSize: 14,
+        color: '#6c757d',
+        textAlign: 'center',
+        marginBottom: 12,
+        lineHeight: 20,
+    },
+    noMenuHint: {
+        fontSize: 12,
+        color: '#67B32D',
+        textAlign: 'center',
+        fontStyle: 'italic',
     },
     category: {
         marginBottom: 20

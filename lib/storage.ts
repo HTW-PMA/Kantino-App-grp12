@@ -12,6 +12,7 @@ const CACHE_KEYS = {
     userName: 'userName',
     savedMensen: 'savedMensen',
     favoriteMeals: 'favoriteMeals',
+    selectedMensa: 'selectedMensa',
 };
 
 export async function fetchCanteensWithCache(): Promise<any> {
@@ -173,5 +174,33 @@ export const isMealFavorite = async (mealId: string): Promise<boolean> => {
     } catch (error) {
         console.error('Error checking if meal is favorite:', error);
         return false;
+    }
+};
+
+// Mensa-Auswahl Funktionen
+export const storeSelectedMensa = async (mensaId: string): Promise<void> => {
+    try {
+        await AsyncStorage.setItem(CACHE_KEYS.selectedMensa, mensaId);
+        console.log('Mensa gespeichert:', mensaId);
+    } catch (error) {
+        console.error('Error storing selected mensa:', error);
+    }
+};
+
+export const getSelectedMensa = async (): Promise<string | null> => {
+    try {
+        const mensaId = await AsyncStorage.getItem(CACHE_KEYS.selectedMensa);
+        return mensaId;
+    } catch (error) {
+        console.error('Error getting selected mensa:', error);
+        return null;
+    }
+};
+
+export const removeSelectedMensa = async (): Promise<void> => {
+    try {
+        await AsyncStorage.removeItem(CACHE_KEYS.selectedMensa);
+    } catch (error) {
+        console.error('Error removing selected mensa:', error);
     }
 };

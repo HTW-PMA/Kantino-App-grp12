@@ -10,7 +10,7 @@ import {
     Platform,
     ScrollView,
 } from 'react-native';
-import { storeName, getName } from '@/lib/storage';
+import { storeName, getName, storeSelectedMensa, getSelectedMensa } from '@/lib/storage';
 import LocationPicker from '@/components/profil/LocationPicker';
 
 export default function ProfileScreen() {
@@ -20,31 +20,47 @@ export default function ProfileScreen() {
 
     useEffect(() => {
         const loadInitial = async () => {
-            const storedName = await getName();
-            if (storedName) setName(storedName);
+            try {
+                const storedName = await getName();
+                const storedMensa = await getSelectedMensa();
+
+                if (storedName) setName(storedName);
+                if (storedMensa) setLocation(storedMensa);
+            } catch (error) {
+                console.error('Fehler beim Laden der Profildaten:', error);
+            }
         };
         loadInitial();
     }, []);
 
     const handleSave = async () => {
-        if (name.trim()) {
-            setSaveStatus('saving');
+        setSaveStatus('saving');
 
-            try {
+        try {
+            // Name speichern (falls vorhanden)
+            if (name.trim()) {
                 await storeName(name.trim());
-                setSaveStatus('saved');
-
-                // Status nach 2 Sekunden zurücksetzen
-                setTimeout(() => {
-                    setSaveStatus('');
-                }, 2000);
-
-            } catch (error) {
-                setSaveStatus('error');
-                setTimeout(() => {
-                    setSaveStatus('');
-                }, 2000);
             }
+
+            // Ausgewählte Mensa speichern (falls vorhanden)
+            if (location) {
+                await storeSelectedMensa(location);
+            }
+
+            setSaveStatus('saved');
+            console.log('Profildaten gespeichert - Name:', name, 'Mensa:', location);
+
+            // Status nach 2 Sekunden zurücksetzen
+            setTimeout(() => {
+                setSaveStatus('');
+            }, 2000);
+
+        } catch (error) {
+            console.error('Fehler beim Speichern:', error);
+            setSaveStatus('error');
+            setTimeout(() => {
+                setSaveStatus('');
+            }, 2000);
         }
     };
 
@@ -94,6 +110,7 @@ export default function ProfileScreen() {
                         onChangeText={setName}
                     />
 
+                    <Text style={styles.label}>Lieblings-Mensa</Text>
                     <LocationPicker value={location} onChange={setLocation} />
 
                     <TouchableOpacity

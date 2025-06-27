@@ -1,19 +1,23 @@
-// LocationPicker.tsx
+// components/profil/LocationPicker.tsx
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { fetchCanteens } from '@/lib/api/mensaService.ts';
+import { fetchCanteens } from '@/lib/api/mensaService';
 
 interface LocationPickerProps {
     value: string;
-    onChange: (newLocation: string) => void;
+    onChange: (mensaId: string) => void;
 }
 
 export default function LocationPicker({ value, onChange }: LocationPickerProps) {
     const [mensen, setMensen] = useState<any[]>([]);
 
     useEffect(() => {
-        fetchCanteens().then(setMensen).catch(console.error);
+        fetchCanteens()
+            .then(setMensen)
+            .catch(error => {
+                console.error('Fehler beim Laden der Mensen:', error);
+            });
     }, []);
 
     return (
@@ -25,9 +29,16 @@ export default function LocationPicker({ value, onChange }: LocationPickerProps)
                 dropdownIconColor="#333"
             >
                 <Picker.Item label="Bitte Mensa wählen" value="" />
-                {mensen.map((mensa) => (
-                    <Picker.Item key={mensa.id} label={mensa.name} value={mensa.name} />
-                ))}
+                {mensen.map((mensa) => {
+                    const mensaId = mensa.id || mensa._id;
+                    return (
+                        <Picker.Item
+                            key={mensaId}
+                            label={mensa.name}
+                            value={mensaId}
+                        />
+                    );
+                })}
             </Picker>
         </View>
     );
