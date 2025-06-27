@@ -2,9 +2,10 @@
 // AsyncStorage Persistent wrapper for caching data from the mensa API
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchCanteens, fetchMeals, fetchBadges, fetchAdditives, fetchMenu } from '@/lib/api/mensaService';
+import { isOnline, updateLastConnectionTime, isDataCriticallyStale } from '@/lib/network';
 
 // Interface für erweiterte Lieblingsspeisen
-interface FavoriteMealWithContext {
+export interface FavoriteMealWithContext {
     id: string;
     name: string;
     category?: string;
@@ -18,9 +19,9 @@ interface FavoriteMealWithContext {
     // Kontext-Informationen
     mensaId: string;
     mensaName: string;
-    dateAdded: string; // ISO string
+    dateAdded: string;
     dayOfWeek: string;
-    originalDate: string; // Das Datum für das der Speiseplan war
+    originalDate: string;
 }
 
 const CACHE_KEYS = {
@@ -33,46 +34,137 @@ const CACHE_KEYS = {
     savedMensen: 'savedMensen',
     favoriteMeals: 'favoriteMeals',
     selectedMensa: 'selectedMensa',
-    favoriteMealsWithContext: 'favoriteMealsWithContext', // Neu
+    favoriteMealsWithContext: 'favoriteMealsWithContext',
 };
 
-// Api-Daten abrufen und in AsyncStorage cachen
+// Erweiterte Cache-Funktionen mit Network-Awareness
 export async function fetchCanteensWithCache(): Promise<any> {
-    try {
-        const data = await fetchCanteens();
-        await AsyncStorage.setItem(CACHE_KEYS.canteens, JSON.stringify(data));
-        return data;
-    } catch (e) {
-        // If API call fails (offline), return cached data if available
+    const online = await isOnline();
+    console.log('fetchCanteensWithCache - Online:', online);
+
+    if (online) {
+        try {
+            const data = await fetchCanteens();
+            await AsyncStorage.setItem(CACHE_KEYS.canteens, JSON.stringify(data));
+            await updateLastConnectionTime();
+            console.log('✅ Fresh data loaded from API');
+            return data;
+        } catch (e) {
+            console.log('API call failed, trying cache...');
+            const cached = await AsyncStorage.getItem(CACHE_KEYS.canteens);
+            if (cached) {
+                console.log('✅ Fallback cache found');
+                return JSON.parse(cached);
+            }
+            throw e;
+        }
+    } else {
+        console.log('Loading from cache (offline)');
         const cached = await AsyncStorage.getItem(CACHE_KEYS.canteens);
-        if (cached) return JSON.parse(cached);
-        throw e;
+        if (cached) {
+            console.log('✅ Cache found, returning data');
+            return JSON.parse(cached);
+        }
+        console.log('❌ No cache found');
+        throw new Error('Keine Internetverbindung und keine gecachten Daten');
     }
 }
 
-export async function fetchMenuWithCache(canteenId: string, date: string) {
-    try {
-        const data = await fetchMenu(canteenId, date);
-        await AsyncStorage.setItem(CACHE_KEYS.menu, JSON.stringify(data));
-        return data;
-    } catch (e) {
-        const cached = await AsyncStorage.getItem(CACHE_KEYS.menu);
+export async function fetchMenuWithCache(canteenId: string, date: string): Promise<any> {
+    const cacheKey = `${CACHE_KEYS.menu}_${canteenId}_${date}`;
+    const online = await isOnline();
+
+    // Prüfe zuerst ob cached data zu alt ist
+    const cached = await AsyncStorage.getItem(cacheKey);
+    if (cached && !online && await isDataCriticallyStale()) {
+        throw new Error('Menüdaten sind über 3 Tage alt und keine Internetverbindung verfügbar');
+    }
+
+    if (online) {
+        try {
+            const data = await fetchMenu(canteenId, date);
+            await AsyncStorage.setItem(cacheKey, JSON.stringify(data));
+            await updateLastConnectionTime();
+            return data;
+        } catch (e) {
+            console.log('Menu API call failed, trying cache...');
+            if (cached) return JSON.parse(cached);
+            throw e;
+        }
+    } else {
         if (cached) return JSON.parse(cached);
-        throw e;
+        throw new Error('Keine Internetverbindung und keine gecachten Menüdaten');
     }
 }
 
-export async function fetchMealsWithCache() {
-    try {
-        const data = await fetchMeals();
-        await AsyncStorage.setItem(CACHE_KEYS.meals, JSON.stringify(data));
-        return data;
-    } catch (e) {
+export async function fetchMealsWithCache(): Promise<any> {
+    const online = await isOnline();
+
+    if (online) {
+        try {
+            const data = await fetchMeals();
+            await AsyncStorage.setItem(CACHE_KEYS.meals, JSON.stringify(data));
+            await updateLastConnectionTime();
+            return data;
+        } catch (e) {
+            console.log('Meals API call failed, trying cache...');
+            const cached = await AsyncStorage.getItem(CACHE_KEYS.meals);
+            if (cached) return JSON.parse(cached);
+            throw e;
+        }
+    } else {
         const cached = await AsyncStorage.getItem(CACHE_KEYS.meals);
         if (cached) return JSON.parse(cached);
-        throw e;
+        throw new Error('Keine Internetverbindung und keine gecachten Mahlzeiten');
     }
 }
+
+// Funktion zum manuellen Refresh der Daten
+export async function refreshAllData(): Promise<{success: boolean, errors: string[]}> {
+    const errors: string[] = [];
+    let success = false;
+
+    if (!(await isOnline())) {
+        return { success: false, errors: ['Keine Internetverbindung'] };
+    }
+
+    try {
+        await fetchCanteensWithCache();
+        success = true;
+    } catch (error) {
+        errors.push('Mensen konnten nicht aktualisiert werden');
+    }
+
+    try {
+        await fetchMealsWithCache();
+        success = true;
+    } catch (error) {
+        errors.push('Mahlzeiten konnten nicht aktualisiert werden');
+    }
+
+    return { success, errors };
+}
+
+// Cache-Management Funktionen
+export async function clearApiCache(): Promise<void> {
+    try {
+        const apiKeys = [CACHE_KEYS.canteens, CACHE_KEYS.meals, CACHE_KEYS.badges, CACHE_KEYS.additives];
+
+        // Lösche nur API-Cache, nicht User-Daten
+        await Promise.all(apiKeys.map(key => AsyncStorage.removeItem(key)));
+
+        // Lösche auch Menü-Caches (die haben dynamische Keys)
+        const allKeys = await AsyncStorage.getAllKeys();
+        const menuKeys = allKeys.filter(key => key.startsWith(CACHE_KEYS.menu));
+        await Promise.all(menuKeys.map(key => AsyncStorage.removeItem(key)));
+
+        console.log('API Cache cleared');
+    } catch (error) {
+        console.error('Error clearing API cache:', error);
+    }
+}
+
+// Alle deine bestehenden User-Funktionen bleiben unverändert:
 
 // Username Funktionen
 export const storeName = async (name: string): Promise<void> => {
@@ -211,47 +303,33 @@ export const getFavoriteMealsWithContext = async (): Promise<FavoriteMealWithCon
 };
 
 export const addMealToFavoritesWithContext = async (
-    meal: {
-        id: string;
-        name: string;
-        category?: string;
-        badges?: string[];
-        additives?: string[];
-        prices?: {
-            students?: number;
-            employees?: number;
-            guests?: number;
-        };
-    },
+    meal: Omit<FavoriteMealWithContext, 'dateAdded' | 'dayOfWeek'>,
     context: {
         mensaId: string;
         mensaName: string;
-        originalDate: string; // Das Datum für das der Speiseplan war (z.B. "2025-06-25")
+        originalDate: string;
     }
 ): Promise<boolean> => {
     try {
-        const existingFavorites = await getFavoriteMealsWithContext();
+        const favorites = await getFavoriteMealsWithContext();
 
         // Prüfe ob bereits vorhanden
-        const isAlreadyFavorite = existingFavorites.some(fav => fav.id === meal.id);
-        if (isAlreadyFavorite) {
-            return false; // Schon vorhanden
-        }
+        const exists = favorites.some(fav => fav.id === meal.id);
+        if (exists) return false;
 
-        // Erstelle erweiterte Meal-Daten
         const now = new Date();
-        const dayNames = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+        const dayOfWeek = now.toLocaleDateString('de-DE', { weekday: 'long' });
 
-        const favoriteMealWithContext: FavoriteMealWithContext = {
+        const mealWithContext: FavoriteMealWithContext = {
             ...meal,
             mensaId: context.mensaId,
             mensaName: context.mensaName,
-            dateAdded: now.toISOString(),
-            dayOfWeek: dayNames[now.getDay()],
             originalDate: context.originalDate,
+            dateAdded: now.toISOString(),
+            dayOfWeek: dayOfWeek,
         };
 
-        const updatedFavorites = [...existingFavorites, favoriteMealWithContext];
+        const updatedFavorites = [...favorites, mealWithContext];
         await AsyncStorage.setItem(CACHE_KEYS.favoriteMealsWithContext, JSON.stringify(updatedFavorites));
 
         return true;
@@ -263,8 +341,8 @@ export const addMealToFavoritesWithContext = async (
 
 export const removeMealFromFavoritesWithContext = async (mealId: string): Promise<boolean> => {
     try {
-        const existingFavorites = await getFavoriteMealsWithContext();
-        const updatedFavorites = existingFavorites.filter(fav => fav.id !== mealId);
+        const favorites = await getFavoriteMealsWithContext();
+        const updatedFavorites = favorites.filter(fav => fav.id !== mealId);
 
         await AsyncStorage.setItem(CACHE_KEYS.favoriteMealsWithContext, JSON.stringify(updatedFavorites));
         return true;
@@ -284,47 +362,18 @@ export const isMealFavoriteWithContext = async (mealId: string): Promise<boolean
     }
 };
 
-// Hilfsfunktionen für Filterung
-export const getFavoriteMealsByCategory = async (category?: string): Promise<FavoriteMealWithContext[]> => {
-    try {
-        const allFavorites = await getFavoriteMealsWithContext();
-        if (!category || category === 'all') {
-            return allFavorites;
-        }
-        return allFavorites.filter(meal => meal.category === category);
-    } catch (error) {
-        console.error('Error filtering favorite meals by category:', error);
-        return [];
-    }
-};
-
-export const getFavoriteMealsByMensa = async (mensaId?: string): Promise<FavoriteMealWithContext[]> => {
-    try {
-        const allFavorites = await getFavoriteMealsWithContext();
-        if (!mensaId) {
-            return allFavorites;
-        }
-        return allFavorites.filter(meal => meal.mensaId === mensaId);
-    } catch (error) {
-        console.error('Error filtering favorite meals by mensa:', error);
-        return [];
-    }
-};
-
 export const getFavoriteCategories = async (): Promise<string[]> => {
     try {
         const favorites = await getFavoriteMealsWithContext();
-        const categories = favorites
-            .map(meal => meal.category)
-            .filter((category): category is string => Boolean(category));
-        return [...new Set(categories)].sort();
+        const categories = [...new Set(favorites.map(fav => fav.category || 'Sonstiges'))];
+        return categories.sort();
     } catch (error) {
         console.error('Error getting favorite categories:', error);
         return [];
     }
 };
 
-// MENSA Auswahl Funktionen
+// Mensa-Auswahl Funktionen
 export const storeSelectedMensa = async (mensaId: string): Promise<void> => {
     try {
         await AsyncStorage.setItem(CACHE_KEYS.selectedMensa, mensaId);
@@ -352,4 +401,54 @@ export const removeSelectedMensa = async (): Promise<void> => {
     }
 };
 
-export type { FavoriteMealWithContext };
+export async function preloadAllMenus(): Promise<void> {
+    const online = await isOnline();
+    if (!online) {
+        console.log('Kein Internet – Menü-Preload übersprungen');
+        return;
+    }
+
+    try {
+        const canteens = await fetchCanteensWithCache();
+        const canteenIds = canteens.map((c: any) => c.id || c._id).filter(Boolean);
+        const today = new Date().toISOString().split('T')[0];
+
+        for (const canteenId of canteenIds) {
+            const cacheKey = `${CACHE_KEYS.menu}_${canteenId}_${today}`;
+
+            try {
+                const data = await fetchMenu(canteenId, today);
+                await AsyncStorage.setItem(cacheKey, JSON.stringify(data));
+                console.log(`Menü für ${canteenId} am ${today} gespeichert`);
+            } catch (e) {
+                console.warn(`Fehler beim Speichern von Menü für ${canteenId}:`, e);
+            }
+        }
+
+        await updateLastConnectionTime();
+        console.log('Tagesmenüs erfolgreich vorgeladen');
+
+    } catch (error) {
+        console.error('Fehler beim Vorladen der Tagesmenüs:', error);
+    }
+}
+
+export async function cleanupOldMenus(): Promise<void> {
+    try {
+        const allKeys = await AsyncStorage.getAllKeys();
+        const today = new Date().toISOString().split('T')[0];
+
+        const keysToDelete = allKeys.filter(key =>
+            key.startsWith(CACHE_KEYS.menu) && !key.includes(`_${today}`)
+        );
+
+        if (keysToDelete.length > 0) {
+            await AsyncStorage.multiRemove(keysToDelete);
+            console.log(`Alte Menü-Caches gelöscht: ${keysToDelete.length}`);
+        } else {
+            console.log('Keine veralteten Menü-Caches gefunden');
+        }
+    } catch (error) {
+        console.error('Fehler beim Bereinigen alter Menü-Caches:', error);
+    }
+}

@@ -2,7 +2,9 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Image, Platform, TouchableOpacity, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { fetchCanteens, fetchMenu } from '@/lib/api/mensaService';
+import { fetchCanteensWithCache } from '@/lib/storage'; // Holt aus API oder Cache
+import { fetchMenuWithCache } from '@/lib/storage'; // fetchMenu jetzt aus storage (mit Cache)
+import * as Network from 'expo-network';
 import { getSelectedMensa } from '@/lib/storage';
 import {
     addMealToFavoritesWithContext,
@@ -150,7 +152,7 @@ function BadgeIcon({ badge }: { badge: { name: string; description?: string } })
     );
 }
 
-// NEU: Like-Button Komponente
+// Like-Button Komponente
 function LikeButton({
                         meal,
                         mensaInfo
@@ -274,10 +276,17 @@ export default function SpeiseplanScreen() {
 
     // Laden der Mensen und Vorauswahl
     useEffect(() => {
-        fetchCanteens()
+        fetchCanteensWithCache()
             .then((data) => {
-                setCanteens(data);
-                const fallbackId = data[0]?.id || data[0]?._id || '';
+                // Filter: nur Mensen mit echtem Speiseplan
+                const filtered = data.filter((m: any) => {
+                    const name = m.name?.toLowerCase();
+                    return name && !name.includes('backshop') && !name.includes('späti');
+                });
+
+                setCanteens(filtered);
+
+                const fallbackId = filtered[0]?.id || filtered[0]?._id || '';
                 setSelectedCanteen((mensaId as string) || fallbackId);
             })
             .catch((e) => console.error('❌ Fehler beim Laden der Mensen:', e));
@@ -323,21 +332,34 @@ export default function SpeiseplanScreen() {
         }, [canteens, mensaId])
     );
 
-    // Laden des Menüs (nur wenn Mensa offen ist)
+    // Laden des Menüs (nur wenn Mensa offen ist) - GEÄNDERT: Jetzt mit Cache-Funktionen
     useEffect(() => {
-        if (!selectedCanteen || !selectedDate) return;
+        const loadMenu = async () => {
+            if (!selectedCanteen || !selectedDate) return;
 
-        // Wenn Mensa geschlossen ist, kein API-Call
-        if (isMensaClosed) {
-            setMenu([]);
-            setLoading(false);
-            return;
-        }
+            if (isMensaClosed) {
+                setMenu([]);
+                setLoading(false);
+                return;
+            }
 
-        setLoading(true);
+            setLoading(true);
 
-        fetchMenu(selectedCanteen, selectedDate)
-            .then((data) => {
+            try {
+                const network = await Network.getNetworkStateAsync();
+                const isOnline = network.isConnected && network.isInternetReachable;
+
+                if (!isOnline && selectedDate !== today) {
+                    Alert.alert(
+                        'Offline',
+                        'Menüdaten für zukünftige Tage können nur mit Internetverbindung angezeigt werden.',
+                        [{ text: 'OK' }]
+                    );
+                    setMenu([]);
+                    return;
+                }
+
+                const data = await fetchMenuWithCache(selectedCanteen, selectedDate);
                 let meals = [];
 
                 if (Array.isArray(data)) {
@@ -348,12 +370,21 @@ export default function SpeiseplanScreen() {
                 }
 
                 setMenu(meals);
-            })
-            .catch((e) => {
+
+            } catch (e: any) {
                 console.error('❌ Fehler beim Laden des Menüs:', e);
                 setMenu([]);
-            })
-            .finally(() => setLoading(false));
+                Alert.alert(
+                    'Fehler',
+                    'Das Menü konnte nicht geladen werden.',
+                    [{ text: 'OK' }]
+                );
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadMenu();
     }, [selectedCanteen, selectedDate, isMensaClosed]);
 
     const groupedMeals = menu.reduce((groups: any, meal: any) => {
@@ -362,7 +393,7 @@ export default function SpeiseplanScreen() {
         return groups;
     }, {});
 
-    // NEU: Mensa-Info für Like-Button
+    // Mensa-Info für Like-Button
     const selectedMensaData = canteens.find(c => (c.id === selectedCanteen) || (c._id === selectedCanteen));
     const mensaInfo = {
         mensaId: selectedCanteen,

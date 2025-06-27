@@ -14,7 +14,6 @@ interface ExpandedMensaCardProps {
     mensa: any;
     onBack: () => void;
     onSpeiseplan: (mensaId: string) => void;
-    onLieblingsSpeisen: (mensaId: string) => void;
     onRoute: (mensa: any) => void;
 }
 
@@ -22,7 +21,6 @@ export default function ExpandedMensaCard({
                                               mensa,
                                               onBack,
                                               onSpeiseplan,
-                                              onLieblingsSpeisen,
                                               onRoute,
                                           }: ExpandedMensaCardProps) {
     const [isFavorite, setIsFavorite] = useState(false);
@@ -111,29 +109,20 @@ export default function ExpandedMensaCard({
                     </View>
 
                     <View style={styles.buttonContainer}>
-                        <TouchableOpacity
-                            style={[styles.buttonBase, styles.buttonPrimary]}
-                            onPress={() =>
-                                router.push({
-                                    pathname: '/speiseplan',
-                                    params: { mensaId: mensa.id },
-                                })
-                            }
-                        >
-                            <Text style={styles.buttonTextWhite}>Zum Speiseplan</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[styles.buttonBase, styles.buttonOutline]}
-                            onPress={() =>
-                                router.push({
-                                    pathname: '/saved/lieblingsspeisen/[mensaId]',
-                                    params: { mensaId: mensa.id },
-                                })
-                            }
-                        >
-                            <Text style={styles.buttonTextDark}>Lieblings Speisen</Text>
-                        </TouchableOpacity>
+                        {!mensa.name.toLowerCase().includes('backshop') &&
+                            !mensa.name.toLowerCase().includes('späti') && (
+                                <TouchableOpacity
+                                    style={[styles.buttonBase, styles.buttonPrimary]}
+                                    onPress={() =>
+                                        router.push({
+                                            pathname: '/speiseplan',
+                                            params: { mensaId: mensa.id },
+                                        })
+                                    }
+                                >
+                                    <Text style={styles.buttonTextWhite}>Zum Speiseplan</Text>
+                                </TouchableOpacity>
+                            )}
 
                         <TouchableOpacity
                             style={[styles.buttonBase, styles.buttonOutline]}

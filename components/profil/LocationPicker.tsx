@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { fetchCanteens } from '@/lib/api/mensaService';
+import { fetchCanteensWithCache } from '@/lib/storage';
 
 interface LocationPickerProps {
     value: string;
@@ -13,8 +13,14 @@ export default function LocationPicker({ value, onChange }: LocationPickerProps)
     const [mensen, setMensen] = useState<any[]>([]);
 
     useEffect(() => {
-        fetchCanteens()
-            .then(setMensen)
+        fetchCanteensWithCache()
+            .then(data => {
+                const echteMensen = data.filter((m: any) => {
+                    const name = m.name?.toLowerCase();
+                    return name && !name.includes('backshop') && !name.includes('späti');
+                });
+                setMensen(echteMensen);
+            })
             .catch(error => {
                 console.error('Fehler beim Laden der Mensen:', error);
             });

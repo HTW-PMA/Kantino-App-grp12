@@ -30,18 +30,39 @@ export default function MensenScreen() {
 
 
     const loadMensen = async () => {
+        setLoading(true);
         try {
-            setLoading(true);
             const data = await fetchCanteensWithCache();
-            console.log('Mensen geladen:', data);
-            setMensen(data);
-            setFilteredMensen(data);
-        } catch (error) {
-            console.error('Fehler beim Laden der Mensen:', error);
+
+            if (Array.isArray(data) && data.length > 0) {
+                setMensen(data);
+                setFilteredMensen(data);
+                console.log('Mensen erfolgreich geladen');
+            } else {
+                throw new Error('Keine Daten verfügbar');
+            }
+
+        } catch (error: any) {
+            console.error('Fehler beim Laden der Mensen:', error.message);
             Alert.alert(
-                'Fehler',
-                'Mensen konnten nicht geladen werden. Bitte versuche es später erneut.'
+                'Offline-Modus',
+                'Mensen konnten nicht online geladen werden. Es werden ggf. gespeicherte Daten angezeigt.'
             );
+
+            // Versuche aus dem Cache zu laden, auch wenn fetchCanteensWithCache fehlgeschlagen ist
+            try {
+                const fallbackRaw = await AsyncStorage.getItem('canteens');
+                if (fallbackRaw) {
+                    const fallback = JSON.parse(fallbackRaw);
+                    setMensen(fallback);
+                    setFilteredMensen(fallback);
+                    console.log('Fallback-Daten aus Cache geladen');
+                } else {
+                    console.warn('Kein Cache verfügbar');
+                }
+            } catch (fallbackError) {
+                console.error('Kein Fallback möglich:', fallbackError);
+            }
         } finally {
             setLoading(false);
         }
