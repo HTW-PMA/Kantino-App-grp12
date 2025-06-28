@@ -2,8 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Image, Platform, TouchableOpacity, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { fetchCanteensWithCache } from '@/lib/storage'; // Holt aus API oder Cache
-import { fetchMenuWithCache } from '@/lib/storage'; // fetchMenu jetzt aus storage (mit Cache)
+import { fetchCanteensWithCache } from '@/lib/storage';
+import { fetchMenuWithCache } from '@/lib/storage';
 import * as Network from 'expo-network';
 import { getSelectedMensa } from '@/lib/storage';
 import {
@@ -13,7 +13,28 @@ import {
 } from '@/lib/storage';
 
 const formatDate = (date: Date) => date.toISOString().split('T')[0];
+
+// Funktion zum Ermitteln des nächsten Werktags (Montag-Freitag)
+const getNextWorkingDay = () => {
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 = Sonntag, 1 = Montag, ..., 6 = Samstag
+
+    let daysToAdd = 0;
+
+    if (dayOfWeek === 0) {
+        daysToAdd = 1;
+    } else if (dayOfWeek === 6) {
+        daysToAdd = 2;
+    } else {
+        daysToAdd = 0;
+    }
+
+    const nextWorkingDay = new Date(now.getTime() + daysToAdd * 86400000);
+    return formatDate(nextWorkingDay);
+};
+
 const today = formatDate(new Date());
+const defaultDate = getNextWorkingDay();
 
 // Intelligente Kategorien-Sortierung basierend auf Inhalt
 const sortCategories = (groupedMeals: any) => {
@@ -263,7 +284,7 @@ export default function SpeiseplanScreen() {
     const { mensaId } = useLocalSearchParams();
     const [canteens, setCanteens] = useState<any[]>([]);
     const [selectedCanteen, setSelectedCanteen] = useState<string>('');
-    const [selectedDate, setSelectedDate] = useState<string>(today);
+    const [selectedDate, setSelectedDate] = useState<string>(defaultDate);
     const [menu, setMenu] = useState<any[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
 
@@ -437,7 +458,6 @@ export default function SpeiseplanScreen() {
             {/* Wenn Mensa geschlossen ist */}
             {isMensaClosed && (
                 <View style={styles.closedContainer}>
-                    <Text style={styles.closedIcon}>🔒</Text>
                     <Text style={styles.closedTitle}>Mensa geschlossen</Text>
                     <Text style={styles.closedSubtitle}>
                         Am {selectedDateInfo?.weekday} ist die Mensa geschlossen.
