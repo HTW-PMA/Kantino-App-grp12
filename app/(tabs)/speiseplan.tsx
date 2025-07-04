@@ -160,7 +160,6 @@ const getBadgeVisual = (badgeName: string): any => {
             case 'roter ampelpunkt':
                 return '🔴';
 
-            // Profil-Badges (falls sie später in der API auftauchen)
             case 'fairtrade':
                 return '🤝';
 
@@ -719,16 +718,10 @@ const styles = StyleSheet.create({
         height: 28,
         marginLeft: 4,
         marginBottom: 2,
-        backgroundColor: '#fff',
         borderRadius: 6,
         padding: 2,
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        elevation: 2,
     },
     badgeImage: {
         width: 20,

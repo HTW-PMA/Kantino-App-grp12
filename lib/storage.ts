@@ -47,25 +47,25 @@ export async function fetchCanteensWithCache(): Promise<any> {
             const data = await fetchCanteens();
             await AsyncStorage.setItem(CACHE_KEYS.canteens, JSON.stringify(data));
             await updateLastConnectionTime();
-            console.log('✅ Fresh data loaded from API');
+            console.log('Fresh canteens loaded from API');
             return data;
         } catch (e) {
-            console.log('API call failed, trying cache...');
+            console.log('Canteens API call failed, trying cache...');
             const cached = await AsyncStorage.getItem(CACHE_KEYS.canteens);
             if (cached) {
-                console.log('✅ Fallback cache found');
+                console.log('Fallback canteens cache found');
                 return JSON.parse(cached);
             }
             throw e;
         }
     } else {
-        console.log('Loading from cache (offline)');
+        console.log('Loading canteens from cache (offline)');
         const cached = await AsyncStorage.getItem(CACHE_KEYS.canteens);
         if (cached) {
-            console.log('✅ Cache found, returning data');
+            console.log('Canteens cache found, returning data');
             return JSON.parse(cached);
         }
-        console.log('❌ No cache found');
+        console.log('No canteens cache found');
         throw new Error('Keine Internetverbindung und keine gecachten Daten');
     }
 }
@@ -85,37 +85,118 @@ export async function fetchMenuWithCache(canteenId: string, date: string): Promi
             const data = await fetchMenu(canteenId, date);
             await AsyncStorage.setItem(cacheKey, JSON.stringify(data));
             await updateLastConnectionTime();
+            console.log(`Fresh menu loaded for ${canteenId} - ${date}`);
             return data;
         } catch (e) {
             console.log('Menu API call failed, trying cache...');
-            if (cached) return JSON.parse(cached);
+            if (cached) {
+                console.log('Fallback menu cache found');
+                return JSON.parse(cached);
+            }
             throw e;
         }
     } else {
-        if (cached) return JSON.parse(cached);
+        if (cached) {
+            console.log('Menu cache found (offline)');
+            return JSON.parse(cached);
+        }
         throw new Error('Keine Internetverbindung und keine gecachten Menüdaten');
     }
 }
 
 export async function fetchMealsWithCache(): Promise<any> {
     const online = await isOnline();
+    console.log('fetchMealsWithCache - Online:', online);
 
     if (online) {
         try {
             const data = await fetchMeals();
             await AsyncStorage.setItem(CACHE_KEYS.meals, JSON.stringify(data));
             await updateLastConnectionTime();
+            console.log('Fresh meals loaded from API');
             return data;
         } catch (e) {
             console.log('Meals API call failed, trying cache...');
             const cached = await AsyncStorage.getItem(CACHE_KEYS.meals);
-            if (cached) return JSON.parse(cached);
+            if (cached) {
+                console.log('Fallback meals cache found');
+                return JSON.parse(cached);
+            }
             throw e;
         }
     } else {
+        console.log('Loading meals from cache (offline)');
         const cached = await AsyncStorage.getItem(CACHE_KEYS.meals);
-        if (cached) return JSON.parse(cached);
+        if (cached) {
+            console.log('Meals cache found, returning data');
+            return JSON.parse(cached);
+        }
+        console.log('No meals cache found');
         throw new Error('Keine Internetverbindung und keine gecachten Mahlzeiten');
+    }
+}
+
+export async function fetchAdditivesWithCache(): Promise<any> {
+    const online = await isOnline();
+    console.log('fetchAdditivesWithCache - Online:', online);
+
+    if (online) {
+        try {
+            const data = await fetchAdditives();
+            await AsyncStorage.setItem(CACHE_KEYS.additives, JSON.stringify(data));
+            await updateLastConnectionTime();
+            console.log('Fresh additives loaded from API');
+            return data;
+        } catch (e) {
+            console.log('Additives API call failed, trying cache...');
+            const cached = await AsyncStorage.getItem(CACHE_KEYS.additives);
+            if (cached) {
+                console.log('Fallback additives cache found');
+                return JSON.parse(cached);
+            }
+            throw e;
+        }
+    } else {
+        console.log('Loading additives from cache (offline)');
+        const cached = await AsyncStorage.getItem(CACHE_KEYS.additives);
+        if (cached) {
+            console.log('Additives cache found, returning data');
+            return JSON.parse(cached);
+        }
+        console.log('No additives cache found');
+        throw new Error('Keine Internetverbindung und keine gecachten Zusatzstoff-Daten');
+    }
+}
+
+export async function fetchBadgesWithCache(): Promise<any> {
+    const online = await isOnline();
+    console.log('fetchBadgesWithCache - Online:', online);
+
+    if (online) {
+        try {
+            const data = await fetchBadges();
+            await AsyncStorage.setItem(CACHE_KEYS.badges, JSON.stringify(data));
+            await updateLastConnectionTime();
+            console.log('Fresh badges loaded from API');
+            return data;
+        } catch (e) {
+            console.log('Badges API call failed, trying cache...');
+            const cached = await AsyncStorage.getItem(CACHE_KEYS.badges);
+            if (cached) {
+                console.log('Fallback badges cache found');
+                return JSON.parse(cached);
+            }
+            throw e;
+        }
+    } else {
+        console.log('Loading badges from cache (offline)');
+        const cached = await AsyncStorage.getItem(CACHE_KEYS.badges);
+        if (cached) {
+            console.log('Badges cache found, returning data');
+            return JSON.parse(cached);
+        }
+        console.log('No badges cache found');
+        throw new Error('Keine Internetverbindung und keine gecachten Badge-Daten');
     }
 }
 
@@ -141,12 +222,31 @@ export async function refreshAllData(): Promise<{success: boolean, errors: strin
         errors.push('Mahlzeiten konnten nicht aktualisiert werden');
     }
 
+    try {
+        await fetchAdditivesWithCache();
+        success = true;
+    } catch (error) {
+        errors.push('Zusatzstoffe konnten nicht aktualisiert werden');
+    }
+
+    try {
+        await fetchBadgesWithCache();
+        success = true;
+    } catch (error) {
+        errors.push('Badges konnten nicht aktualisiert werden');
+    }
+
     return { success, errors };
 }
 
 export async function clearApiCache(): Promise<void> {
     try {
-        const apiKeys = [CACHE_KEYS.canteens, CACHE_KEYS.meals, CACHE_KEYS.badges, CACHE_KEYS.additives];
+        const apiKeys = [
+            CACHE_KEYS.canteens,
+            CACHE_KEYS.meals,
+            CACHE_KEYS.badges,
+            CACHE_KEYS.additives
+        ];
 
         // Lösche nur API-Cache, nicht User-Daten
         await Promise.all(apiKeys.map(key => AsyncStorage.removeItem(key)));
@@ -159,6 +259,59 @@ export async function clearApiCache(): Promise<void> {
         console.log('API Cache cleared');
     } catch (error) {
         console.error('Error clearing API cache:', error);
+    }
+}
+
+// ===== MENÜ-PRELOAD FUNKTIONEN =====
+export async function preloadAllMenus(): Promise<void> {
+    const online = await isOnline();
+    if (!online) {
+        console.log('Kein Internet – Menü-Preload übersprungen');
+        return;
+    }
+
+    try {
+        const canteens = await fetchCanteensWithCache();
+        const canteenIds = canteens.map((c: any) => c.id || c._id).filter(Boolean);
+        const today = new Date().toISOString().split('T')[0];
+
+        for (const canteenId of canteenIds) {
+            const cacheKey = `${CACHE_KEYS.menu}_${canteenId}_${today}`;
+
+            try {
+                const data = await fetchMenu(canteenId, today);
+                await AsyncStorage.setItem(cacheKey, JSON.stringify(data));
+                console.log(`Menü für ${canteenId} am ${today} gespeichert`);
+            } catch (e) {
+                console.warn(`Fehler beim Speichern von Menü für ${canteenId}:`, e);
+            }
+        }
+
+        await updateLastConnectionTime();
+        console.log('Tagesmenüs erfolgreich vorgeladen');
+
+    } catch (error) {
+        console.error('Fehler beim Vorladen der Tagesmenüs:', error);
+    }
+}
+
+export async function cleanupOldMenus(): Promise<void> {
+    try {
+        const allKeys = await AsyncStorage.getAllKeys();
+        const today = new Date().toISOString().split('T')[0];
+
+        const keysToDelete = allKeys.filter(key =>
+            key.startsWith(CACHE_KEYS.menu) && !key.includes(`_${today}`)
+        );
+
+        if (keysToDelete.length > 0) {
+            await AsyncStorage.multiRemove(keysToDelete);
+            console.log(`Alte Menü-Caches gelöscht: ${keysToDelete.length}`);
+        } else {
+            console.log('Keine veralteten Menü-Caches gefunden');
+        }
+    } catch (error) {
+        console.error('Fehler beim Bereinigen alter Menü-Caches:', error);
     }
 }
 
@@ -412,7 +565,7 @@ export const migratePreferencesToFinalFormat = async (): Promise<void> => {
         const rawPrefs = await AsyncStorage.getItem(CACHE_KEYS.preferences);
 
         if (!rawPrefs) {
-            console.log('🔍 Keine Präferenzen gefunden - Migration übersprungen');
+            console.log('Keine Präferenzen gefunden - Migration übersprungen');
             return;
         }
 
@@ -421,7 +574,7 @@ export const migratePreferencesToFinalFormat = async (): Promise<void> => {
 
         // Object → Array (falls nötig)
         if (typeof parsed === 'object' && !Array.isArray(parsed)) {
-            console.log('🔄 Object → Array Migration...');
+            console.log('Object → Array Migration...');
 
             const keyMapping: { [key: string]: string } = {
                 'vegetarian': 'vegetarisch',
@@ -439,14 +592,14 @@ export const migratePreferencesToFinalFormat = async (): Promise<void> => {
                 }
             }
 
-            console.log('✅ Object zu Array:', arrayPrefs);
+            console.log('Object zu Array:', arrayPrefs);
         } else if (Array.isArray(parsed)) {
             arrayPrefs = parsed;
-            console.log('🔍 Bereits Array-Format:', arrayPrefs);
+            console.log('Bereits Array-Format:', arrayPrefs);
         }
 
         // Array → finale saubere Badges
-        console.log('🔄 Bereinige zu echten API-Badges...');
+        console.log('Bereinige zu echten API-Badges...');
 
         const finalPrefs: string[] = [];
         const removedPrefs: string[] = [];
@@ -481,7 +634,7 @@ export const migratePreferencesToFinalFormat = async (): Promise<void> => {
 
         await storePreferences(finalPrefs);
 
-        console.log('✅ Finale Migration abgeschlossen:', {
+        console.log('Finale Migration abgeschlossen:', {
             eingabe: parsed,
             zwischenschritt: arrayPrefs,
             finale_prefs: finalPrefs,
@@ -489,11 +642,11 @@ export const migratePreferencesToFinalFormat = async (): Promise<void> => {
         });
 
         if (removedPrefs.length > 0) {
-            console.log(`ℹ️ ${removedPrefs.length} veraltete Präferenzen entfernt: ${removedPrefs.join(', ')}`);
+            console.log(`${removedPrefs.length} veraltete Präferenzen entfernt: ${removedPrefs.join(', ')}`);
         }
 
     } catch (error) {
-        console.error('❌ Migration fehlgeschlagen:', error);
+        console.error('Migration fehlgeschlagen:', error);
         await storePreferences([]);
     }
 };
@@ -507,56 +660,3 @@ export const getPreferencesWithMigration = async (): Promise<string[]> => {
         return [];
     }
 };
-
-// ===== MENÜ-PRELOAD FUNKTIONEN =====
-export async function preloadAllMenus(): Promise<void> {
-    const online = await isOnline();
-    if (!online) {
-        console.log('Kein Internet – Menü-Preload übersprungen');
-        return;
-    }
-
-    try {
-        const canteens = await fetchCanteensWithCache();
-        const canteenIds = canteens.map((c: any) => c.id || c._id).filter(Boolean);
-        const today = new Date().toISOString().split('T')[0];
-
-        for (const canteenId of canteenIds) {
-            const cacheKey = `${CACHE_KEYS.menu}_${canteenId}_${today}`;
-
-            try {
-                const data = await fetchMenu(canteenId, today);
-                await AsyncStorage.setItem(cacheKey, JSON.stringify(data));
-                console.log(`Menü für ${canteenId} am ${today} gespeichert`);
-            } catch (e) {
-                console.warn(`Fehler beim Speichern von Menü für ${canteenId}:`, e);
-            }
-        }
-
-        await updateLastConnectionTime();
-        console.log('Tagesmenüs erfolgreich vorgeladen');
-
-    } catch (error) {
-        console.error('Fehler beim Vorladen der Tagesmenüs:', error);
-    }
-}
-
-export async function cleanupOldMenus(): Promise<void> {
-    try {
-        const allKeys = await AsyncStorage.getAllKeys();
-        const today = new Date().toISOString().split('T')[0];
-
-        const keysToDelete = allKeys.filter(key =>
-            key.startsWith(CACHE_KEYS.menu) && !key.includes(`_${today}`)
-        );
-
-        if (keysToDelete.length > 0) {
-            await AsyncStorage.multiRemove(keysToDelete);
-            console.log(`Alte Menü-Caches gelöscht: ${keysToDelete.length}`);
-        } else {
-            console.log('Keine veralteten Menü-Caches gefunden');
-        }
-    } catch (error) {
-        console.error('Fehler beim Bereinigen alter Menü-Caches:', error);
-    }
-}
