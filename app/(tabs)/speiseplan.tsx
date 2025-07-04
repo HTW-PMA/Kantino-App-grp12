@@ -5,6 +5,7 @@ import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { fetchCanteensWithCache } from '@/lib/storage';
 import { fetchMenuWithCache } from '@/lib/storage';
 import * as Network from 'expo-network';
+import { isAllowedBadge, isSystemBadge } from "@/utils/BadgeUtils";
 import { getSelectedMensa } from '@/lib/storage';
 import {
     addMealToFavoritesWithContext,
@@ -132,17 +133,47 @@ const getDateLabel = (dateInfo: any) => {
 // Badge: Icon- oder Emoji-Zuordnung
 const getBadgeVisual = (badgeName: string): any => {
     const name = badgeName.toLowerCase();
-    if (name.includes('h2o')) return null;
+
+    // H2O und CO2 Badges ausblenden (entfernt)
+    if (!isAllowedBadge(name)) return null;
 
     try {
-        if (name.includes('vegan')) return require('@/assets/images/speiseplan/vegan.png');
-        if (name.includes('bio') || name.includes('vegetarisch')) return require('@/assets/images/speiseplan/bio.png');
-        if (name.includes('co2_bewertung_a')) return require('@/assets/images/speiseplan/co2_green.png');
-        if (name.includes('co2_bewertung_b')) return require('@/assets/images/speiseplan/co2_orange.png');
-        if (name.includes('co2_bewertung_c')) return require('@/assets/images/speiseplan/co2_red.png');
-        if (name.includes('grüner ampelpunkt')) return '🟢';
-        if (name.includes('gelber ampelpunkt')) return '🟡';
-        if (name.includes('roter ampelpunkt')) return '🔴';
+        // Exakte Badge-Namen aus der API - NUR DIE WICHTIGEN
+        switch (name) {
+            // Ernährungs-Badges
+            case 'vegan':
+                return require('@/assets/images/speiseplan/vegan.png');
+
+            case 'vegetarisch':
+                return require('@/assets/images/speiseplan/bio.png');
+
+            case 'klimaessen':
+                return '🌍';
+
+            // Nachhaltigkeitsampel
+            case 'grüner ampelpunkt':
+                return '🟢';
+
+            case 'gelber ampelpunkt':
+                return '🟡';
+
+            case 'roter ampelpunkt':
+                return '🔴';
+
+            // Profil-Badges (falls sie später in der API auftauchen)
+            case 'fairtrade':
+                return '🤝';
+
+            case 'nachhaltige landwirtschaft':
+                return '♻️';
+
+            case 'nachhaltige fischerei':
+                return '🐟';
+
+            // Alle anderen Badges werden NICHT angezeigt
+            default:
+                return null;
+        }
     } catch (error) {
         console.error('❌ Fehler beim Laden des Badges:', badgeName, error);
     }
@@ -353,7 +384,7 @@ export default function SpeiseplanScreen() {
         }, [canteens, mensaId])
     );
 
-    // Laden des Menüs (nur wenn Mensa offen ist) - GEÄNDERT: Jetzt mit Cache-Funktionen
+    // Laden des Menüs (nur wenn Mensa offen ist) mit Cache-Funktionen
     useEffect(() => {
         const loadMenu = async () => {
             if (!selectedCanteen || !selectedDate) return;
@@ -502,8 +533,7 @@ export default function SpeiseplanScreen() {
                                             <View style={styles.badgeRow}>
                                                 {meal.badges
                                                     .filter((badge: any) =>
-                                                        hasBadgeVisual(badge.name) &&
-                                                        !badge.name.toLowerCase().includes('h2o')
+                                                        hasBadgeVisual(badge.name) && isAllowedBadge(badge.name)
                                                     )
                                                     .slice(0, 5)
                                                     .map((badge: any, index: number) => (
@@ -521,12 +551,11 @@ export default function SpeiseplanScreen() {
                                 )}
 
                                 {meal.badges?.some((b: any) =>
-                                    !hasBadgeVisual(b.name) && !b.name.toLowerCase().includes('h2o')) && (
+                                    !isAllowedBadge(b.name) && !isSystemBadge(b.name)) && (
                                     <Text style={styles.badgeText}>
                                         {meal.badges
                                             .filter((b: any) =>
-                                                !hasBadgeVisual(b.name) &&
-                                                !b.name.toLowerCase().includes('h2o'))
+                                                !isAllowedBadge(b.name) && !isSystemBadge(b.name))
                                             .map((b: any) => b.name)
                                             .join(', ')}
                                     </Text>
