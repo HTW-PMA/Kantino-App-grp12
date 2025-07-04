@@ -32,12 +32,12 @@ const CACHE_KEYS = {
     menu: 'menu',
     userName: 'userName',
     savedMensen: 'savedMensen',
-    favoriteMeals: 'favoriteMeals',
     selectedMensa: 'selectedMensa',
     favoriteMealsWithContext: 'favoriteMealsWithContext',
+    preferences: 'userPreferences',
 };
 
-// Erweiterte Cache-Funktionen mit Network-Awareness
+// ===== API CACHE FUNKTIONEN =====
 export async function fetchCanteensWithCache(): Promise<any> {
     const online = await isOnline();
     console.log('fetchCanteensWithCache - Online:', online);
@@ -119,7 +119,6 @@ export async function fetchMealsWithCache(): Promise<any> {
     }
 }
 
-// Funktion zum manuellen Refresh der Daten
 export async function refreshAllData(): Promise<{success: boolean, errors: string[]}> {
     const errors: string[] = [];
     let success = false;
@@ -145,7 +144,6 @@ export async function refreshAllData(): Promise<{success: boolean, errors: strin
     return { success, errors };
 }
 
-// Cache-Management Funktionen
 export async function clearApiCache(): Promise<void> {
     try {
         const apiKeys = [CACHE_KEYS.canteens, CACHE_KEYS.meals, CACHE_KEYS.badges, CACHE_KEYS.additives];
@@ -164,9 +162,7 @@ export async function clearApiCache(): Promise<void> {
     }
 }
 
-// Alle deine bestehenden User-Funktionen bleiben unverändert:
-
-// Username Funktionen
+// ===== USERNAME FUNKTIONEN =====
 export const storeName = async (name: string): Promise<void> => {
     try {
         await AsyncStorage.setItem(CACHE_KEYS.userName, name);
@@ -193,7 +189,7 @@ export const removeName = async (): Promise<void> => {
     }
 };
 
-// Gespeicherte Mensen-Funktionen
+// ===== GESPEICHERTE MENSEN FUNKTIONEN =====
 export const getSavedMensen = async (): Promise<string[]> => {
     try {
         const saved = await AsyncStorage.getItem(CACHE_KEYS.savedMensen);
@@ -242,56 +238,7 @@ export const isMensaSaved = async (mensaId: string): Promise<boolean> => {
     }
 };
 
-// Alte lieblingsspeisen-Funktionen
-export const getFavoriteMeals = async (): Promise<string[]> => {
-    try {
-        const favorites = await AsyncStorage.getItem(CACHE_KEYS.favoriteMeals);
-        return favorites ? JSON.parse(favorites) : [];
-    } catch (error) {
-        console.error('Error getting favorite meals:', error);
-        return [];
-    }
-};
-
-export const addMealToFavorites = async (mealId: string): Promise<boolean> => {
-    try {
-        const favoriteIds = await getFavoriteMeals();
-
-        if (!favoriteIds.includes(mealId)) {
-            const updatedIds = [...favoriteIds, mealId];
-            await AsyncStorage.setItem(CACHE_KEYS.favoriteMeals, JSON.stringify(updatedIds));
-            return true;
-        }
-        return false;
-    } catch (error) {
-        console.error('Error adding meal to favorites:', error);
-        return false;
-    }
-};
-
-export const removeMealFromFavorites = async (mealId: string): Promise<boolean> => {
-    try {
-        const favoriteIds = await getFavoriteMeals();
-        const updatedIds = favoriteIds.filter(id => id !== mealId);
-        await AsyncStorage.setItem(CACHE_KEYS.favoriteMeals, JSON.stringify(updatedIds));
-        return true;
-    } catch (error) {
-        console.error('Error removing meal from favorites:', error);
-        return false;
-    }
-};
-
-export const isMealFavorite = async (mealId: string): Promise<boolean> => {
-    try {
-        const favoriteIds = await getFavoriteMeals();
-        return favoriteIds.includes(mealId);
-    } catch (error) {
-        console.error('Error checking if meal is favorite:', error);
-        return false;
-    }
-};
-
-// Erweiterte Lieblingsspeisen-Funktionen mit Kontext
+// ===== LIEBLINGSSPEISEN MIT KONTEXT =====
 export const getFavoriteMealsWithContext = async (): Promise<FavoriteMealWithContext[]> => {
     try {
         const favorites = await AsyncStorage.getItem(CACHE_KEYS.favoriteMealsWithContext);
@@ -373,7 +320,7 @@ export const getFavoriteCategories = async (): Promise<string[]> => {
     }
 };
 
-// Mensa-Auswahl Funktionen
+// ===== MENSA-AUSWAHL FUNKTIONEN =====
 export const storeSelectedMensa = async (mensaId: string): Promise<void> => {
     try {
         await AsyncStorage.setItem(CACHE_KEYS.selectedMensa, mensaId);
@@ -401,6 +348,167 @@ export const removeSelectedMensa = async (): Promise<void> => {
     }
 };
 
+// ===== ESSENSVORLIEBEN FUNKTIONEN =====
+export const getPreferences = async (): Promise<string[]> => {
+    try {
+        const preferences = await AsyncStorage.getItem(CACHE_KEYS.preferences);
+        return preferences ? JSON.parse(preferences) : [];
+    } catch (error) {
+        console.error('Error getting preferences:', error);
+        return [];
+    }
+};
+
+export const storePreferences = async (preferences: string[]): Promise<void> => {
+    try {
+        await AsyncStorage.setItem(CACHE_KEYS.preferences, JSON.stringify(preferences));
+        console.log('Preferences saved:', preferences);
+    } catch (error) {
+        console.error('Error storing preferences:', error);
+    }
+};
+
+export const addPreference = async (preference: string): Promise<boolean> => {
+    try {
+        const currentPrefs = await getPreferences();
+
+        if (!currentPrefs.includes(preference)) {
+            const updatedPrefs = [...currentPrefs, preference];
+            await storePreferences(updatedPrefs);
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error('Error adding preference:', error);
+        return false;
+    }
+};
+
+export const removePreference = async (preference: string): Promise<boolean> => {
+    try {
+        const currentPrefs = await getPreferences();
+        const updatedPrefs = currentPrefs.filter(pref => pref !== preference);
+        await storePreferences(updatedPrefs);
+        return true;
+    } catch (error) {
+        console.error('Error removing preference:', error);
+        return false;
+    }
+};
+
+export const hasPreference = async (preference: string): Promise<boolean> => {
+    try {
+        const preferences = await getPreferences();
+        return preferences.includes(preference);
+    } catch (error) {
+        console.error('Error checking preference:', error);
+        return false;
+    }
+};
+
+// Migration für Präferenzen
+export const migratePreferencesToFinalFormat = async (): Promise<void> => {
+    try {
+        const rawPrefs = await AsyncStorage.getItem(CACHE_KEYS.preferences);
+
+        if (!rawPrefs) {
+            console.log('🔍 Keine Präferenzen gefunden - Migration übersprungen');
+            return;
+        }
+
+        const parsed = JSON.parse(rawPrefs);
+        let arrayPrefs: string[] = [];
+
+        // Object → Array (falls nötig)
+        if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+            console.log('🔄 Object → Array Migration...');
+
+            const keyMapping: { [key: string]: string } = {
+                'vegetarian': 'vegetarisch',
+                'vegan': 'vegan',
+                'glutenfree': 'glutenfrei',
+                'lactosefree': 'laktosefrei',
+                'fisch': 'fisch',
+                'scharf': 'scharf'
+            };
+
+            for (const [oldKey, isActive] of Object.entries(parsed)) {
+                if (isActive === true) {
+                    const newKey = keyMapping[oldKey] || oldKey;
+                    arrayPrefs.push(newKey);
+                }
+            }
+
+            console.log('✅ Object zu Array:', arrayPrefs);
+        } else if (Array.isArray(parsed)) {
+            arrayPrefs = parsed;
+            console.log('🔍 Bereits Array-Format:', arrayPrefs);
+        }
+
+        // Array → finale saubere Badges
+        console.log('🔄 Bereinige zu echten API-Badges...');
+
+        const finalPrefs: string[] = [];
+        const removedPrefs: string[] = [];
+
+        arrayPrefs.forEach(pref => {
+            const prefLower = pref.toLowerCase();
+
+            switch (prefLower) {
+                case 'vegetarisch':
+                    finalPrefs.push('vegetarisch');
+                    break;
+                case 'vegan':
+                    finalPrefs.push('vegan');
+                    break;
+                case 'klimaessen':
+                    finalPrefs.push('klimaessen');
+                    break;
+                case 'fairtrade':
+                    finalPrefs.push('fairtrade');
+                    break;
+                case 'nachhaltig':
+                    finalPrefs.push('nachhaltig');
+                    break;
+                case 'fisch_nachhaltig':
+                    finalPrefs.push('fisch_nachhaltig');
+                    break;
+                default:
+                    removedPrefs.push(pref);
+                    break;
+            }
+        });
+
+        await storePreferences(finalPrefs);
+
+        console.log('✅ Finale Migration abgeschlossen:', {
+            eingabe: parsed,
+            zwischenschritt: arrayPrefs,
+            finale_prefs: finalPrefs,
+            entfernt: removedPrefs
+        });
+
+        if (removedPrefs.length > 0) {
+            console.log(`ℹ️ ${removedPrefs.length} veraltete Präferenzen entfernt: ${removedPrefs.join(', ')}`);
+        }
+
+    } catch (error) {
+        console.error('❌ Migration fehlgeschlagen:', error);
+        await storePreferences([]);
+    }
+};
+
+export const getPreferencesWithMigration = async (): Promise<string[]> => {
+    try {
+        await migratePreferencesToFinalFormat();
+        return await getPreferences();
+    } catch (error) {
+        console.error('Error getting preferences with migration:', error);
+        return [];
+    }
+};
+
+// ===== MENÜ-PRELOAD FUNKTIONEN =====
 export async function preloadAllMenus(): Promise<void> {
     const online = await isOnline();
     if (!online) {
