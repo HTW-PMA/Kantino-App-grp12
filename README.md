@@ -13,10 +13,13 @@ Mirav Ahmad
 * Übersicht aller Berliner Mensen und Cafeterias
 * Aktuelle Speisepläne anzeigen
 * Lieblings-Mensen und -Gerichte speichern
+   - Erweiterte Suchfunktion nach Gerichten, Kategorien und Mensen
 * Navigation zu Mensen via Google Maps
-* AI-Chatbot für Fragen rund um Mensen und Speisen (in Entwicklung)
-* Offline-Funktionalität mit automatischem Caching
-* Erweiterte Suchfunktion
+* Intelligenter AI-Chatbot (Beta) für Essens-Empfehlungen & Fragen zu Mensen
+   - Berücksichtigt Nutzerpräferenzen (z.B. vegan, fairtrade)
+   - Kann tagesaktuelle Empfehlungen und Preisinformationen liefern
+   - Versteht natürliche Sprache (z.B. „Was ist heute vegetarisch?“)
+* Offline-Funktionalität mit automatischem Caching für Speisepläne & Mensen
 
 ## Tech Stack
 
