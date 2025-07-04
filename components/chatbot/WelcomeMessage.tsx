@@ -38,7 +38,13 @@ export default function WelcomeMessage() {
                 <Text style={styles.question}>how can I help you?</Text>
             </View>
 
-            <Text style={styles.comingSoon}>Funktion wird bald verfügbar sein</Text>
+            <View style={styles.infoContainer}>
+                <Text style={styles.infoTitle}>Ich kann dir helfen bei:</Text>
+                <Text style={styles.infoItem}>• "Was kann ich heute essen?"</Text>
+                <Text style={styles.infoItem}>• "Zeige mir vegetarische Gerichte"</Text>
+                <Text style={styles.infoItem}>• "Was gibt es in meiner Lieblings-Mensa?"</Text>
+                <Text style={styles.infoItem}>• "Günstige Gerichte"</Text>
+            </View>
         </View>
     );
 }
@@ -52,7 +58,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
     },
     messageContainer: {
-        marginBottom: 24,
+        marginBottom: 40,
         alignItems: 'center',
     },
     greeting: {
@@ -71,10 +77,23 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
     },
-    comingSoon: {
+    infoContainer: {
+        backgroundColor: '#f8f9fa',
+        padding: 20,
+        borderRadius: 12,
+        width: '100%',
+    },
+    infoTitle: {
         fontSize: 16,
-        color: '#6B7280',
+        fontWeight: '600',
+        color: '#333',
+        marginBottom: 12,
         textAlign: 'center',
-        fontWeight: '500',
+    },
+    infoItem: {
+        fontSize: 14,
+        color: '#666',
+        marginBottom: 6,
+        paddingLeft: 8,
     },
 });
