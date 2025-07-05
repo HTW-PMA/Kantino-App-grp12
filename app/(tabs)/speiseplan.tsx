@@ -523,48 +523,67 @@ export default function SpeiseplanScreen() {
                         <Text style={styles.categoryTitle}>{category}</Text>
                         {groupedMeals[category].map((meal: any, i: number) => (
                             <View key={`${meal.id || meal.name}-${i}`} style={styles.mealBox}>
-                                <View style={styles.titleRow}>
-                                    <Text style={styles.mealName}>{meal.name}</Text>
-                                    <View style={styles.rightSection}>
-                                        {/* NEU: Like-Button hinzugefügt */}
-                                        <LikeButton meal={meal} mensaInfo={mensaInfo} />
-                                        {meal.badges?.length > 0 && (
+                                {/* Like-Button absolut positioniert (oben rechts) */}
+                                <View style={styles.likeButtonContainer}>
+                                    <LikeButton meal={meal} mensaInfo={mensaInfo} />
+                                </View>
+
+                                {/* Meal Content */}
+                                <View style={styles.mealContent}>
+                                    {/* Titel (mit Platz für Like-Button) */}
+                                    <View style={styles.titleSection}>
+                                        <Text style={styles.mealName}>{meal.name}</Text>
+                                    </View>
+
+                                    {/* Preise */}
+                                    {meal.prices?.length > 0 && (
+                                        <Text style={styles.priceText} numberOfLines={1} adjustsFontSizeToFit>
+                                            {meal.prices.map((p: any) => {
+                                                // Verkürze die Preistyp-Namen
+                                                const shortType = p.priceType
+                                                    .replace('Studierende', 'Studierende.')
+                                                    .replace('Angestellte', 'Angestellte.')
+                                                    .replace('Gäste', 'Gäste');
+                                                return `${shortType}: ${p.price}€`;
+                                            }).join(' / ')}
+                                        </Text>
+                                    )}
+
+                                    {/* Badges in eigener Zeile */}
+                                    {meal.badges?.length > 0 && (
+                                        <View style={styles.badgesSection}>
                                             <View style={styles.badgeRow}>
                                                 {meal.badges
                                                     .filter((badge: any) =>
                                                         hasBadgeVisual(badge.name) && isAllowedBadge(badge.name)
                                                     )
-                                                    .slice(0, 5)
+                                                    .slice(0, 6) // Mehr Platz für Badges
                                                     .map((badge: any, index: number) => (
                                                         <BadgeIcon key={index} badge={badge} />
                                                     ))}
                                             </View>
-                                        )}
-                                    </View>
+
+                                            {/* Weitere Badge-Namen als Text */}
+                                            {meal.badges?.some((b: any) =>
+                                                !isAllowedBadge(b.name) && !isSystemBadge(b.name)) && (
+                                                <Text style={styles.badgeText}>
+                                                    {meal.badges
+                                                        .filter((b: any) =>
+                                                            !isAllowedBadge(b.name) && !isSystemBadge(b.name))
+                                                        .map((b: any) => b.name)
+                                                        .join(', ')}
+                                                </Text>
+                                            )}
+                                        </View>
+                                    )}
+
+                                    {/* Zusatzstoffe */}
+                                    {meal.additives?.length > 0 && (
+                                        <Text style={styles.additives}>
+                                            Zusatzstoffe: {meal.additives.map((a: any) => a.text).join(', ')}
+                                        </Text>
+                                    )}
                                 </View>
-
-                                {meal.prices?.length > 0 && (
-                                    <Text style={styles.priceText}>
-                                        {meal.prices.map((p: any) => `${p.priceType}: ${p.price}€`).join(' / ')}
-                                    </Text>
-                                )}
-
-                                {meal.badges?.some((b: any) =>
-                                    !isAllowedBadge(b.name) && !isSystemBadge(b.name)) && (
-                                    <Text style={styles.badgeText}>
-                                        {meal.badges
-                                            .filter((b: any) =>
-                                                !isAllowedBadge(b.name) && !isSystemBadge(b.name))
-                                            .map((b: any) => b.name)
-                                            .join(', ')}
-                                    </Text>
-                                )}
-
-                                {meal.additives?.length > 0 && (
-                                    <Text style={styles.additives}>
-                                        Zusatzstoffe: {meal.additives.map((a: any) => a.text).join(', ')}
-                                    </Text>
-                                )}
                             </View>
                         ))}
                     </View>
@@ -655,93 +674,121 @@ const styles = StyleSheet.create({
     },
     mealBox: {
         backgroundColor: '#f8f9fa',
-        padding: 14,
+        padding: 16,
         marginTop: 8,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: '#e9ecef'
+        borderColor: '#e9ecef',
+        position: 'relative', // Für absolute Positionierung
     },
-    titleRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
+
+    // NEU: Like-Button oben rechts absolut positioniert
+    likeButtonContainer: {
+        position: 'absolute',
+        top: 12,
+        right: 12,
+        zIndex: 10,
+    },
+
+    // NEU: Content-Bereich mit Platz für Like-Button
+    mealContent: {
+        paddingRight: 50, // Platz für Like-Button
+    },
+
+    // NEU: Titel-Sektion
+    titleSection: {
         marginBottom: 8,
     },
+
     mealName: {
         fontSize: 16,
         fontWeight: '600',
         color: '#212529',
-        flex: 1,
-        marginRight: 12,
         lineHeight: 22,
     },
-    // NEU: Styles für Like-Button und Right-Section
-    rightSection: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: 8,
+
+    // NEU: Badge-Sektion separat
+    badgesSection: {
+        marginTop: 8,
+        marginBottom: 4,
     },
-    likeButton: {
-        width: 32,
-        height: 32,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-        borderRadius: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        elevation: 2,
-    },
-    heartImage: {
-        width: 22,
-        height: 22,
-    },
-    loadingText: {
-        fontSize: 16,
-    },
-    priceText: {
-        fontSize: 14,
-        color: '#495057',
-        marginBottom: 6,
-        fontWeight: '500'
-    },
+
     badgeRow: {
         flexDirection: 'row',
         alignItems: 'center',
         flexWrap: 'wrap',
-        justifyContent: 'flex-end',
+        gap: 6, // Besserer Abstand zwischen Badges
+        marginBottom: 6,
     },
+
     badgeContainer: {
-        width: 28,
-        height: 28,
-        marginLeft: 4,
-        marginBottom: 2,
-        borderRadius: 6,
-        padding: 2,
+        width: 32, // Etwas größer
+        height: 32,
+        borderRadius: 8,
+        padding: 4,
         alignItems: 'center',
         justifyContent: 'center',
+        // Hintergrund und Border entfernt für cleanen Look
     },
+
     badgeImage: {
         width: 20,
         height: 20,
     },
+
     emoji: {
         fontSize: 18,
     },
+
+    // Überarbeiteter Like-Button
+    likeButton: {
+        width: 36, // Etwas größer
+        height: 36,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        borderRadius: 18,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 3,
+        elevation: 4,
+        borderWidth: 1,
+        borderColor: 'rgba(0, 0, 0, 0.1)',
+    },
+
+    heartImage: {
+        width: 24, // Etwas größer
+        height: 24,
+    },
+
+    loadingText: {
+        fontSize: 16,
+    },
+
+    priceText: {
+        fontSize: 13, // Etwas kleiner für bessere Einzeiligkeit
+        color: '#495057',
+        marginBottom: 4,
+        fontWeight: '500'
+    },
+
     badgeText: {
         fontSize: 12,
         color: '#28a745',
         fontWeight: '500',
-        marginBottom: 4,
+        marginTop: 4,
+        lineHeight: 16,
     },
+
     additives: {
         fontSize: 11,
         color: '#6c757d',
-        marginTop: 4,
-        fontStyle: 'italic'
+        marginTop: 8,
+        fontStyle: 'italic',
+        lineHeight: 14,
     },
+
     pickerContainer: {
         backgroundColor: '#f0f0f0',
         borderRadius: 12,
