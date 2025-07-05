@@ -3,6 +3,7 @@ import {
     View,
     StyleSheet,
     FlatList,
+    Text,
 } from 'react-native';
 
 import ChatMessage from '@/components/chatbot/ChatMessage';
@@ -19,6 +20,9 @@ import {
     fetchBadgesWithCache,
     fetchAdditivesWithCache
 } from '@/lib/storage';
+
+import { GeminiService } from '@/services/GeminiService';
+import NetInfo from '@react-native-community/netinfo';
 
 interface Message {
     id: string;
@@ -38,11 +42,23 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
     const [isTyping, setIsTyping] = useState(false);
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
     const [additivesCache, setAdditivesCache] = useState<any[] | null>(null);
+    const [geminiService] = useState(() => new GeminiService());
+    const [isOnline, setIsOnline] = useState(true);
     const flatListRef = useRef<FlatList>(null);
 
     // Lade Benutzerprofil beim Start
     useEffect(() => {
         loadUserProfile();
+    }, []);
+
+    // Internet-Status überwachen
+    useEffect(() => {
+        const unsubscribe = NetInfo.addEventListener(state => {
+            setIsOnline(state.isConnected === true);
+            console.log('Internet Status:', state.isConnected ? 'Online' : 'Offline');
+        });
+
+        return () => unsubscribe();
     }, []);
 
     const loadUserProfile = async () => {
@@ -84,23 +100,9 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
         };
 
         setMessages(prev => [...prev, newMessage]);
-
-        // Scroll zum Ende
-        setTimeout(() => {
-            flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-
-        // Intelligente Bot-Antwort
-        await processUserMessage(message);
-    };
-
-    const processUserMessage = async (message: string) => {
         setIsTyping(true);
 
         try {
-            // Simuliere Typing-Delay für bessere UX
-            await new Promise(resolve => setTimeout(resolve, 1500));
-
             const response = await getIntelligentResponse(message);
 
             const botMessage: Message = {
@@ -112,10 +114,10 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
 
             setMessages(prev => [...prev, botMessage]);
         } catch (error) {
-            console.error('Chatbot error:', error);
+            console.error('Fehler bei der Bot-Antwort:', error);
             const errorMessage: Message = {
                 id: (Date.now() + 1).toString(),
-                message: 'Entschuldigung, es ist ein Fehler aufgetreten. Versuche es bitte erneut.',
+                message: 'Entschuldigung, da ist etwas schiefgelaufen. Versuche es nochmal!',
                 isUser: false,
                 timestamp: new Date(),
             };
@@ -137,161 +139,348 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
             return "Lade dein Profil... Versuche es gleich nochmal!";
         }
 
-        // HEUTIGES MENÜ & EMPFEHLUNGEN - ERWEITERTE ERKENNUNG
-        if ((lowerMessage.includes('heute') && (
-            lowerMessage.includes('essen') ||
-            lowerMessage.includes('empfehlung') ||
-            lowerMessage.includes('passt') ||
-            lowerMessage.includes('passend') ||
-            lowerMessage.includes('vorlieben') ||
-            lowerMessage.includes('geeignet')
-        )) && !hasSpecificIngredient(lowerMessage)) {
-            return await getTodaysRecommendations();
+        // Definiere lokale Antwort-Funktionen
+        const getLocalResponse = async (): Promise<string> => {
+            // ZUTATEN-SUCHE (immer lokal - präziser als AI)
+            const ingredientSearch = extractIngredientFromMessage(lowerMessage);
+            if (ingredientSearch) {
+                return await searchMealsByIngredient(ingredientSearch);
+            }
+
+            // ALLERGENE - unterscheide MIT vs OHNE
+            if (lowerMessage.includes('allergen') || lowerMessage.includes('allergisch') ||
+                lowerMessage.includes('glutenfrei') || lowerMessage.includes('laktosefrei') ||
+                lowerMessage.includes('mit laktose') || lowerMessage.includes('mit gluten') ||
+                lowerMessage.includes('laktose') || lowerMessage.includes('gluten') ||
+                lowerMessage.includes('ei') || lowerMessage.includes('nuss') || lowerMessage.includes('soja')) {
+
+                // Prüfe ob nach Gerichten MIT dem Allergen gesucht wird
+                const searchingForContains = lowerMessage.includes('mit ') ||
+                    lowerMessage.includes('gibt es') ||
+                    lowerMessage.includes('enthält') ||
+                    (lowerMessage.includes('was') && !lowerMessage.includes('frei'));
+
+                if (searchingForContains) {
+                    // Suche nach Gerichten DIE das Allergen enthalten
+                    const allergen = extractAllergenFromMessage(lowerMessage);
+                    return await searchMealsByIngredient(allergen);
+                } else {
+                    // Suche nach Gerichten OHNE das Allergen (frei von)
+                    const allergen = extractAllergenFromMessage(lowerMessage);
+                    return await getAllergenFreeOptions(allergen);
+                }
+            }
+
+            // HEUTIGES MENÜ & EMPFEHLUNGEN - ERWEITERTE ERKENNUNG
+            if ((lowerMessage.includes('heute') && (
+                lowerMessage.includes('essen') ||
+                lowerMessage.includes('empfehlung') ||
+                lowerMessage.includes('passt') ||
+                lowerMessage.includes('passend') ||
+                lowerMessage.includes('vorlieben') ||
+                lowerMessage.includes('geeignet') ||
+                lowerMessage.includes('mensa') ||
+                lowerMessage.includes('gibt es') ||
+                lowerMessage.includes('menü') ||
+                lowerMessage.includes('speiseplan')
+            )) && !hasSpecificIngredient(lowerMessage)) {
+                return await getTodaysRecommendations();
+            }
+
+            // ODER: Direkte Menü-Anfragen
+            if ((lowerMessage.includes('was gibt es') || lowerMessage.includes('zeige') || lowerMessage.includes('liste')) &&
+                (lowerMessage.includes('heute') || lowerMessage.includes('mensa') || lowerMessage.includes('menü'))) {
+                return await getTodaysRecommendations();
+            }
+
+            // ODER: Generelle Vorlieben-Anfragen (auch ohne "heute")
+            if ((lowerMessage.includes('passt') || lowerMessage.includes('passend')) &&
+                (lowerMessage.includes('vorlieben') || lowerMessage.includes('präferenz'))) {
+                return await getTodaysRecommendations();
+            }
+
+            // MEINE VORLIEBEN
+            if (lowerMessage.includes('meine vorlieben') || lowerMessage.includes('was sind meine') ||
+                (lowerMessage.includes('vorlieben') && lowerMessage.includes('meine'))) {
+                return await getUserPreferences();
+            }
+
+            // VEGETARISCH & VEGAN (lokal - strukturierte Daten)
+            if (lowerMessage.includes('vegetarisch') || lowerMessage.includes('vegan')) {
+                return await getVegetarianOptions();
+            }
+
+            // ZUSATZSTOFFE & ALLERGENE
+            if (lowerMessage.includes('zusatzstoff') || lowerMessage.includes('additive')) {
+                const words = message.split(/\s+/);
+                const additiveIndex = words.findIndex(word =>
+                    word.toLowerCase().includes('zusatzstoff') ||
+                    word.toLowerCase().includes('additive')
+                );
+
+                const searchTerm = additiveIndex >= 0 && additiveIndex < words.length - 1
+                    ? words[additiveIndex + 1]
+                    : '';
+
+                return await searchByAdditives(searchTerm);
+            }
+
+            // NACHHALTIGE OPTIONEN (lokal - Badge-basiert)
+            if (lowerMessage.includes('nachhaltig') || lowerMessage.includes('fairtrade') ||
+                lowerMessage.includes('klima') || lowerMessage.includes('umwelt')) {
+                return await getSustainableOptions();
+            }
+
+            // GÜNSTIGE OPTIONEN (lokal - Preis-basiert)
+            if (lowerMessage.includes('günstig') || lowerMessage.includes('billig') ||
+                lowerMessage.includes('budget') || lowerMessage.includes('preiswert')) {
+                return await getBudgetOptions();
+            }
+
+            // MENSA INFORMATIONEN
+            if (lowerMessage.includes('meine mensa') || lowerMessage.includes('ausgewählte mensa')) {
+                return await getMensaInfo();
+            }
+
+            // ÖFFNUNGSZEITEN
+            if (lowerMessage.includes('öffnungszeit') || lowerMessage.includes('geöffnet') ||
+                lowerMessage.includes('geschlossen') || lowerMessage.includes('wann offen')) {
+                return await getOpeningHours();
+            }
+
+            // HILFE
+            if (lowerMessage.includes('hilfe') || lowerMessage.includes('help') ||
+                lowerMessage.includes('was kannst du') || lowerMessage.includes('befehle')) {
+                return getEnhancedHelpMessage();
+            }
+
+            // FALLBACK für unbekannte Anfragen
+            return `Das verstehe ich noch nicht. Versuche es mit:\n\n• "Was kann ich heute essen?"\n• "Vegetarische Optionen"\n• "Günstige Gerichte"\n• "Hilfe"\n\nOder stelle eine konkrete Frage!`;
+        };
+
+        // Prüft ob es eine strukturierte Anfrage
+        const isStructuredQuery =
+            // User-Daten Anfragen
+            (lowerMessage.includes('meine vorlieben') || lowerMessage.includes('meine mensa')) ||
+            (lowerMessage.includes('was ist meine') && (lowerMessage.includes('mensa') || lowerMessage.includes('vorlieben'))) ||
+
+            // Filter-Befehle
+            (lowerMessage.includes('vegetarische optionen') || lowerMessage.includes('vegane optionen')) ||
+            (lowerMessage.includes('günstige gerichte')) ||
+            (lowerMessage.includes('was kann ich heute essen')) ||
+
+            // Hilfe
+            (lowerMessage.includes('hilfe') || lowerMessage.includes('help')) ||
+
+            // ALLE Zutat/Allergen-Suchen (egal welche Zutat)
+            (lowerMessage.includes('gibt es') && lowerMessage.includes('mit ')) ||
+            (lowerMessage.includes('was mit ')) ||
+            (lowerMessage.includes('gerichte mit ')) ||
+            (lowerMessage.includes('laktose') || lowerMessage.includes('gluten') || lowerMessage.includes('ei') ||
+                lowerMessage.includes('fisch') || lowerMessage.includes('huhn') || lowerMessage.includes('pasta') ||
+                lowerMessage.includes('reis') || lowerMessage.includes('salat') || lowerMessage.includes('suppe') ||
+                lowerMessage.includes('fleisch') || lowerMessage.includes('soja') || lowerMessage.includes('nuss')) ||
+
+            // Allergen-freie Anfragen
+            (lowerMessage.includes('frei') && (lowerMessage.includes('laktose') || lowerMessage.includes('gluten') || lowerMessage.includes('allergen')));
+
+        if (isStructuredQuery) {
+            console.log('Strukturierte Anfrage - verwende lokales System');
+            return await getLocalResponse();
         }
 
-        // ODER: Generelle Vorlieben-Anfragen (auch ohne "heute")
-        if ((lowerMessage.includes('passt') || lowerMessage.includes('passend')) &&
-            (lowerMessage.includes('vorlieben') || lowerMessage.includes('präferenz'))) {
-            return await getTodaysRecommendations();
+        // Hybrid-System: Prüft erst Offline-Status
+        if (!isOnline) {
+            console.log('Offline - verwende nur lokales System');
+            return await getLocalResponse();
         }
 
-        // ZUTATEN-SUCHE
-        const ingredientSearch = extractIngredientFromMessage(lowerMessage);
-        if (ingredientSearch) {
-            return await searchMealsByIngredient(ingredientSearch);
-        }
-
-        // VEGETARISCH & VEGAN
-        if (lowerMessage.includes('vegetarisch') || lowerMessage.includes('vegan')) {
-            return await getVegetarianOptions();
-        }
-
-        // ZUSATZSTOFFE & ALLERGENE
-        if (lowerMessage.includes('zusatzstoff') || lowerMessage.includes('additive')) {
-            const words = message.split(/\s+/);
-            const additiveIndex = words.findIndex(word =>
-                word.toLowerCase().includes('zusatzstoff') ||
-                word.toLowerCase().includes('additive')
+        // Online: Verwendet Hybrid-System
+        try {
+            const hybridResponse = await geminiService.getHybridResponse(
+                message,
+                userProfile,
+                getLocalResponse
             );
 
-            const searchTerm = additiveIndex >= 0 && additiveIndex < words.length - 1
-                ? words[additiveIndex + 1]
-                : undefined;
+            // Debug-Anzeige für Entwicklung
+            if (__DEV__) {
+                const statusEmoji = hybridResponse.isLocal ? ' (Lokal)' : ' (AI)';
+                console.log(`Antwort-Typ: ${hybridResponse.isLocal ? 'Lokales System' : 'Gemini AI'}`);
 
-            return await getAdditiveInfo(searchTerm);
-        }
+                // Stellt sicher, dass es ein String ist
+                let responseText = typeof hybridResponse.response === 'string'
+                    ? hybridResponse.response
+                    : String(hybridResponse.response);
 
-        if (lowerMessage.includes('allergen') || lowerMessage.includes('allergien')) {
-            return await getAllergenInfo();
-        }
+                // Verbessert Gemini-Antworten
+                if (!hybridResponse.isLocal) {
+                    responseText = enhanceGeminiResponse(responseText);
+                }
 
-        // ALLERGENFREIE GERICHTE
-        const allergenFreePatterns = [
-            { pattern: /glutenfrei|ohne gluten/i, allergen: 'gluten' },
-            { pattern: /laktosefrei|ohne laktose|ohne milch/i, allergen: 'laktose' },
-            { pattern: /ohne ei|eifrei/i, allergen: 'ei' },
-            { pattern: /ohne fisch|fischfrei/i, allergen: 'fisch' },
-            { pattern: /ohne erdnuss|erdnussfrei/i, allergen: 'erdnuss' },
-            { pattern: /ohne nuss|nussfrei/i, allergen: 'nuss' },
-            { pattern: /ohne soja|sojafrei/i, allergen: 'soja' }
-        ];
-
-        for (const { pattern, allergen } of allergenFreePatterns) {
-            if (pattern.test(message)) {
-                return await getAllergenFreeMeals(allergen);
+                return responseText + statusEmoji;
             }
-        }
 
-        // PREIS & BUDGET
-        if (lowerMessage.includes('preis') || lowerMessage.includes('günstig') || lowerMessage.includes('billig') || lowerMessage.includes('budget')) {
-            return await getBudgetOptions();
-        }
+            let finalResponse = typeof hybridResponse.response === 'string'
+                ? hybridResponse.response
+                : String(hybridResponse.response);
 
-        // MENSA-INFO
-        if (lowerMessage.includes('mensa') || lowerMessage.includes('lieblings')) {
-            return await getFavoriteMensaMenu();
-        }
+            if (!hybridResponse.isLocal) {
+                finalResponse = enhanceGeminiResponse(finalResponse);
+            }
 
-        // NACHHALTIGKEIT
-        if (lowerMessage.includes('nachhaltig') || lowerMessage.includes('klimaessen') || lowerMessage.includes('fairtrade') || lowerMessage.includes('umwelt')) {
-            return await getSustainableOptions();
+            return finalResponse;
+        } catch (error) {
+            console.error('Hybrid-System Fehler:', error);
+            // Sicherheits-Fallback
+            return await getLocalResponse();
         }
+    };
 
-        // BEGRÜSSUNG
-        if (lowerMessage.includes('hallo') || lowerMessage.includes('hi') || lowerMessage.includes('hey')) {
-            return `Hallo ${userProfile.name || 'dort'}!\n\nWie kann ich dir heute bei der Essensauswahl helfen?\n\nProbiere: "Was gibt es heute mit Fisch?" oder "Welche Gerichte sind glutenfrei?"`;
+    const enhanceGeminiResponse = (response: string): string => {
+        // Entferne unnötige Phrasen
+        let enhanced = response
+            .replace(/Basierend auf den heutigen Menüdaten[,.]*/gi, '')
+            .replace(/Laut dem aktuellen Speiseplan[,.]*/gi, '')
+            .replace(/In der heutigen Auswahl[,.]*/gi, '')
+            .replace(/Im heutigen Menü der Mensa[,.]*/gi, '')
+            .trim();
+
+        // Korrigiere häufige Gemini-Fehler
+        enhanced = enhanced
+            .replace(/\n\n+/g, '\n\n')
+            .replace(/^[•\-]\s*/gm, '')
+            .replace(/\s+([.!?])/g, '$1');
+
+        return enhanced;
+    };
+
+    const getUserPreferences = async (): Promise<string> => {
+        try {
+            if (!userProfile?.preferences?.length) {
+                return "Du hast noch keine Vorlieben ausgewählt. Gehe zu deinem Profil und setze deine Präferenzen!";
+            }
+
+            let response = "Deine aktuellen Vorlieben:\n\n";
+            userProfile.preferences.forEach((pref, index) => {
+                response += `• ${pref.charAt(0).toUpperCase() + pref.slice(1)}\n`;
+            });
+
+            response += `\nIch berücksichtige diese Vorlieben bei meinen Empfehlungen. Du kannst sie in deinem Profil ändern.`;
+
+            return response;
+        } catch (error) {
+            return "Kann Vorlieben nicht laden.";
         }
+    };
 
-        // HILFE
-        if (lowerMessage.includes('hilfe') || lowerMessage.includes('help') || lowerMessage.includes('was kannst du')) {
-            return getEnhancedHelpMessage();
+    const getMensaInfo = async (): Promise<string> => {
+        try {
+            if (!userProfile?.selectedMensa) {
+                return "Du hast noch keine Lieblings-Mensa ausgewählt. Gehe zu deinem Profil und wähle eine aus!";
+            }
+
+            const canteens = await fetchCanteensWithCache();
+            const selectedMensa = canteens?.find((m: any) => m.id === userProfile.selectedMensa);
+
+            if (!selectedMensa) {
+                return "Kann Informationen zu deiner Mensa nicht laden.";
+            }
+
+            let response = `Deine ausgewählte Mensa:\n\n${selectedMensa.name}\n`;
+
+            if (selectedMensa.address) {
+                response += `Adresse: ${selectedMensa.address.street}, ${selectedMensa.address.zipcode} ${selectedMensa.address.city}\n`;
+            }
+
+            return response;
+        } catch (error) {
+            return "Kann Mensa-Informationen nicht laden.";
         }
+    };
 
-        // FALLBACK
-        return `Das verstehe ich nicht ganz. Versuche es mal mit:\n\n• "Was gibt es heute mit Fisch?"\n• "Zeige vegetarische Optionen"\n• "Welche Gerichte sind glutenfrei?"\n• "Zusatzstoffe"\n• "Hilfe"\n\nIch kann nach spezifischen Zutaten suchen!`;
+    const getOpeningHours = async (): Promise<string> => {
+        try {
+            if (!userProfile?.selectedMensa) {
+                return "Du hast noch keine Lieblings-Mensa ausgewählt. Gehe zu deinem Profil und wähle eine aus!";
+            }
+
+            const canteens = await fetchCanteensWithCache();
+            const selectedMensa = canteens?.find((m: any) => m.id === userProfile.selectedMensa);
+
+            if (!selectedMensa?.openingHours) {
+                return "Öffnungszeiten für deine Mensa sind leider nicht verfügbar.";
+            }
+
+            let response = `Öffnungszeiten von ${selectedMensa.name}:\n\n`;
+
+            Object.entries(selectedMensa.openingHours).forEach(([day, hours]: [string, any]) => {
+                if (hours && hours !== 'closed') {
+                    response += `${day}: ${hours}\n`;
+                } else {
+                    response += `${day}: Geschlossen\n`;
+                }
+            });
+
+            return response;
+        } catch (error) {
+            return "Kann Öffnungszeiten nicht laden.";
+        }
+    };
+
+    const searchByAdditives = async (searchTerm: string): Promise<string> => {
+        try {
+            if (!additivesCache) {
+                const additives = await fetchAdditivesWithCache();
+                setAdditivesCache(additives || []);
+            }
+
+            if (!searchTerm) {
+                return "Bitte gib einen Zusatzstoff an, z.B. 'Zusatzstoff 1' oder 'Zusatzstoff Farbstoff'";
+            }
+
+            const foundAdditive = additivesCache?.find((additive: any) =>
+                additive.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                additive.description?.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+
+            if (!foundAdditive) {
+                return `Zusatzstoff "${searchTerm}" nicht gefunden. Verfügbare Zusatzstoffe kannst du in der App einsehen.`;
+            }
+
+            return `Zusatzstoff: ${foundAdditive.name}\nBeschreibung: ${foundAdditive.description || 'Keine Beschreibung verfügbar'}`;
+        } catch (error) {
+            return "Kann Zusatzstoff-Informationen nicht laden.";
+        }
     };
 
     const searchMealsByIngredient = async (ingredient: string): Promise<string> => {
-        if (!userProfile?.selectedMensa) {
-            return "Wähle zuerst eine Lieblings-Mensa aus!";
-        }
-
         try {
+            if (!userProfile?.selectedMensa) {
+                return "Du hast noch keine Lieblings-Mensa ausgewählt. Gehe zu deinem Profil und wähle eine aus!";
+            }
+
             const today = new Date().toISOString().split('T')[0];
             const menu = await fetchMenuWithCache(userProfile.selectedMensa, today);
 
             let meals = [];
             if (Array.isArray(menu)) {
-                const dayData = menu.find(day => day.date === today);
+                const dayData = menu.find((day: any) => day.date === today);
                 meals = dayData?.meals || [];
-            } else if (menu?.meals && Array.isArray(menu.meals)) {
+            } else if (menu?.meals) {
                 meals = menu.meals;
             }
 
-            // Parse Suchbegriffe (entweder JSON-Array oder einzelner Begriff)
-            let searchTerms: string[] = [];
-            try {
-                searchTerms = JSON.parse(ingredient);
-            } catch {
-                searchTerms = [ingredient.toLowerCase()];
-            }
-
-            console.log(`Suche nach Begriffen: [${searchTerms.join(', ')}] in ${meals.length} Gerichten`);
-
-            const matchingMeals = meals.filter((meal: any) => {
-                // 1. Suche im Namen mit ALLEN Begriffen
-                const nameMatch = searchTerms.some(term =>
-                    meal.name && meal.name.toLowerCase().includes(term)
-                );
-
-                // 2. Suche in Zusatzstoffen/Allergenen mit ALLEN Begriffen
-                const additiveMatch = meal.additives?.some((additive: any) =>
-                    searchTerms.some(term =>
-                        (additive.name || additive.text || '').toLowerCase().includes(term)
-                    )
-                );
-
-                // 3. Suche in der Kategorie mit ALLEN Begriffen
-                const categoryMatch = searchTerms.some(term =>
-                    meal.category && meal.category.toLowerCase().includes(term)
-                );
-
-                if (nameMatch || additiveMatch || categoryMatch) {
-                    console.log(`Match gefunden: "${meal.name}" - Name: ${nameMatch}, Zusatzstoff: ${additiveMatch}, Kategorie: ${categoryMatch}`);
-                }
-
-                return nameMatch || additiveMatch || categoryMatch;
-            });
-
-            console.log(`Gefundene Gerichte mit "${searchTerms.join(', ')}": ${matchingMeals.length}`);
+            const matchingMeals = meals.filter((meal: any) =>
+                meal.name?.toLowerCase().includes(ingredient.toLowerCase())
+            );
 
             if (matchingMeals.length === 0) {
-                return `Heute gibt es leider keine Gerichte mit "${searchTerms.join(' oder ')}".\n\nTipp: Versuche es mit anderen Begriffen oder schaue in einer anderen Mensa.`;
+                return `Heute gibt es leider keine Gerichte mit "${ingredient}".`;
             }
 
-            let response = `Gerichte mit "${searchTerms[0]}" (${matchingMeals.length}):\n\n`;
-
-            matchingMeals.slice(0, 8).forEach((meal, index) => {
+            let response = `Gerichte mit "${ingredient}" heute:\n\n`;
+            matchingMeals.slice(0, 8).forEach((meal: any, index: number) => {
                 const price = meal.prices?.[0]?.price ? ` - ${meal.prices[0].price}€` : '';
                 response += `${index + 1}. ${meal.name}${price}\n`;
 
@@ -321,124 +510,153 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
         }
     };
 
-    // Hilfsfunktionen für Zutaten-Erkennung:
-    const hasSpecificIngredient = (message: string): boolean => {
-        const ingredients = [
-            'fisch', 'fish', 'lachs', 'thunfisch', 'kabeljau',
-            'fleisch', 'schwein', 'rind', 'beef', 'pork', 'huhn', 'chicken', 'hähnchen', 'pute', 'turkey',
-            'pasta', 'nudeln', 'spaghetti', 'reis', 'rice', 'kartoffel', 'potato',
-            'salat', 'suppe', 'soup', 'pizza', 'burger',
-            'käse', 'cheese', 'milch', 'milk', 'joghurt', 'yogurt',
-            'tofu', 'seitan', 'quinoa', 'bulgur', 'couscous',
-            'gemüse', 'vegetables', 'tomaten', 'paprika', 'zwiebeln', 'spinat',
-            'obst', 'fruit', 'apfel', 'banane', 'orange'
-        ];
-
-        return ingredients.some(ingredient => message.includes(ingredient));
-    };
-
-    const extractIngredientFromMessage = (message: string): string | null => {
-        const ingredientPatterns = [
-            // Fisch & Meeresfrüchte - ERWEITERT
-            {
-                pattern: /\b(fisch|fish|lachs|salmon|seelachs|thunfisch|tuna|kabeljau|cod|forelle|trout|scholle|garnele|shrimp|muschel|krabben)\b/i,
-                terms: ['fisch', 'lachs', 'salmon', 'seelachs', 'thunfisch', 'tuna', 'kabeljau', 'cod', 'forelle', 'trout', 'scholle', 'garnele', 'shrimp', 'muschel', 'krabben']
-            },
-
-            // Fleisch - ERWEITERT
-            {
-                pattern: /\b(fleisch|meat|schwein|pork|rind|beef|kalb|veal|lamm|lamb|wurst|sausage|speck|bacon|schnitzel|steak)\b/i,
-                terms: ['fleisch', 'schwein', 'pork', 'rind', 'beef', 'kalb', 'veal', 'lamm', 'lamb', 'wurst', 'sausage', 'speck', 'bacon', 'schnitzel', 'steak']
-            },
-
-            // Geflügel - ERWEITERT
-            {
-                pattern: /\b(huhn|chicken|hähnchen|hühnchen|geflügel|pute|turkey|ente|duck|gans)\b/i,
-                terms: ['huhn', 'hähnchen', 'chicken', 'pute', 'turkey', 'ente', 'duck', 'gans', 'geflügel']
-            },
-
-            // Pasta & Kohlenhydrate
-            {
-                pattern: /\b(pasta|nudeln|spaghetti|penne|linguine|tagliatelle|ravioli)\b/i,
-                terms: ['pasta', 'nudeln', 'spaghetti', 'penne', 'linguine', 'tagliatelle', 'ravioli']
-            },
-
-            {
-                pattern: /\b(reis|rice|risotto|paella)\b/i,
-                terms: ['reis', 'rice', 'risotto', 'paella']
-            },
-
-            {
-                pattern: /\b(kartoffel|potato|pommes|fries|kartoffelbrei)\b/i,
-                terms: ['kartoffel', 'potato', 'pommes', 'fries', 'kartoffelbrei']
-            },
-
-            // Vegetarisch/Vegan
-            {
-                pattern: /\b(tofu|seitan|tempeh|quinoa|bulgur|couscous|kichererbsen)\b/i,
-                terms: ['tofu', 'seitan', 'tempeh', 'quinoa', 'bulgur', 'couscous', 'kichererbsen']
-            },
-
-            // Gemüse
-            {
-                pattern: /\b(salat|lettuce|tomaten|tomato|paprika|pepper|zwiebeln|onion|spinat|spinach|brokkoli|broccoli|karotten|pilze|mushroom)\b/i,
-                terms: ['salat', 'tomaten', 'paprika', 'zwiebeln', 'spinat', 'brokkoli', 'karotten', 'pilze']
-            },
-
-            // Milchprodukte
-            {
-                pattern: /\b(käse|cheese|mozzarella|parmesan|gouda|feta|milch|milk|joghurt|yogurt|sahne|cream|butter)\b/i,
-                terms: ['käse', 'cheese', 'mozzarella', 'parmesan', 'gouda', 'feta', 'milch', 'joghurt', 'sahne', 'butter']
-            },
-
-            // Allgemeine Kategorien
-            {
-                pattern: /\b(suppe|soup|eintopf|brühe|curry|pizza|burger|sandwich)\b/i,
-                terms: ['suppe', 'soup', 'eintopf', 'brühe', 'curry', 'pizza', 'burger', 'sandwich']
-            },
-        ];
-
-        for (const { pattern, terms } of ingredientPatterns) {
-            const match = message.match(pattern);
-            if (match) {
-                console.log(`Erkannte Zutat: "${match[1]}" -> Suchbegriffe: [${terms.join(', ')}]`);
-                return JSON.stringify(terms); // Gib alle Suchbegriffe als JSON zurück
-            }
-        }
-
-        return null;
-    };
-
-    const getSustainableOptions = async (): Promise<string> => {
-        if (!userProfile?.selectedMensa) {
-            return "Wähle zuerst eine Lieblings-Mensa aus!";
-        }
-
+    const getVegetarianOptions = async (): Promise<string> => {
         try {
+            if (!userProfile?.selectedMensa) {
+                return "Du hast noch keine Lieblings-Mensa ausgewählt. Gehe zu deinem Profil und wähle eine aus!";
+            }
+
             const today = new Date().toISOString().split('T')[0];
             const menu = await fetchMenuWithCache(userProfile.selectedMensa, today);
 
             let meals = [];
             if (Array.isArray(menu)) {
-                const dayData = menu.find(day => day.date === today);
+                const dayData = menu.find((day: any) => day.date === today);
                 meals = dayData?.meals || [];
-            } else if (menu?.meals && Array.isArray(menu.meals)) {
+            } else if (menu?.meals) {
                 meals = menu.meals;
             }
 
-            const sustainableMeals = meals.filter((meal: any) =>
-                meal.badges?.some((badge: any) => {
-                    const badgeName = badge?.name || '';
-                    return ['Fairtrade', 'Klimaessen', 'Nachhaltige Landwirtschaft', 'Nachhaltige Fischerei', 'CO2_bewertung_A', 'Grüner Ampelpunkt'].includes(badgeName);
-                })
-            );
+            const vegetarianMeals = meals.filter((meal: any) => {
+                const badges = meal.badges?.map((b: any) => b?.name) || [];
+                return badges.includes('Vegetarisch') || badges.includes('Vegan');
+            });
+
+            if (vegetarianMeals.length === 0) {
+                return "Heute gibt es leider keine speziell ausgewiesenen vegetarischen Optionen.";
+            }
+
+            let response = "Vegetarische & vegane Optionen heute:\n\n";
+            vegetarianMeals.forEach((meal: any, index: number) => {
+                const price = meal.prices?.[0]?.price ? ` - ${meal.prices[0].price}€` : '';
+                const isVegan = meal.badges?.some((b: any) => b?.name === 'Vegan');
+                const vegLabel = isVegan ? ' (Vegan)' : ' (Vegetarisch)';
+
+                response += `${index + 1}. ${meal.name}${price}${vegLabel}\n`;
+            });
+
+            return response;
+        } catch (error) {
+            return "Kann vegetarische Optionen nicht laden.";
+        }
+    };
+
+    const getAllergenFreeOptions = async (allergen: string): Promise<string> => {
+        try {
+            if (!userProfile?.selectedMensa) {
+                return "Du hast noch keine Lieblings-Mensa ausgewählt. Gehe zu deinem Profil und wähle eine aus!";
+            }
+
+            const today = new Date().toISOString().split('T')[0];
+            const menu = await fetchMenuWithCache(userProfile.selectedMensa, today);
+
+            let meals = [];
+            if (Array.isArray(menu)) {
+                const dayData = menu.find((day: any) => day.date === today);
+                meals = dayData?.meals || [];
+            } else if (menu?.meals) {
+                meals = menu.meals;
+            }
+
+            let allergenFreeMeals = meals.filter((meal: any) => {
+                const allergens = meal.allergens || [];
+                const allergensText = allergens.join(' ').toLowerCase();
+
+                switch (allergen.toLowerCase()) {
+                    case 'gluten':
+                        return !allergensText.includes('gluten') && !allergensText.includes('weizen') &&
+                            !allergensText.includes('gerste') && !allergensText.includes('roggen') &&
+                            !allergensText.includes('hafer') && !allergensText.includes('dinkel');
+                    case 'laktose':
+                        return !allergensText.includes('milch') && !allergensText.includes('laktose');
+                    case 'ei':
+                    case 'eier':
+                        return !allergensText.includes('eier');
+                    case 'nuss':
+                    case 'nüsse':
+                        return !allergensText.includes('nuss') && !allergensText.includes('mandel') &&
+                            !allergensText.includes('haselnuss') && !allergensText.includes('walnuss');
+                    case 'fisch':
+                        return !allergensText.includes('fisch');
+                    case 'soja':
+                        return !allergensText.includes('soja');
+                    case 'sellerie':
+                        return !allergensText.includes('sellerie');
+                    case 'senf':
+                        return !allergensText.includes('senf');
+                    case 'sesam':
+                        return !allergensText.includes('sesam');
+                    default:
+                        return !allergensText.includes(allergen.toLowerCase());
+                }
+            });
+
+            if (allergenFreeMeals.length === 0) {
+                return `Heute gibt es leider keine ${allergen}freien Optionen.`;
+            }
+
+            let response = `${allergen.charAt(0).toUpperCase() + allergen.slice(1)}freie Optionen heute:\n\n`;
+            allergenFreeMeals.slice(0, 8).forEach((meal: any, index: number) => {
+                const price = meal.prices?.[0]?.price ? ` - ${meal.prices[0].price}€` : '';
+                response += `${index + 1}. ${meal.name}${price}\n`;
+
+                // Zeige positive Eigenschaften (was NICHT enthalten ist, ist gut)
+                const allergens = meal.allergens || [];
+                if (allergens.length > 0) {
+                    response += `   Weitere Allergene: ${allergens.slice(0, 3).join(', ')}${allergens.length > 3 ? '...' : ''}\n`;
+                }
+            });
+
+            if (allergenFreeMeals.length > 8) {
+                response += `\n...und ${allergenFreeMeals.length - 8} weitere!`;
+            }
+
+            return response;
+        } catch (error) {
+            return `Kann allergenfreie Gerichte nicht laden.`;
+        }
+    };
+
+    const getSustainableOptions = async (): Promise<string> => {
+        try {
+            if (!userProfile?.selectedMensa) {
+                return "Du hast noch keine Lieblings-Mensa ausgewählt. Gehe zu deinem Profil und wähle eine aus!";
+            }
+
+            const today = new Date().toISOString().split('T')[0];
+            const menu = await fetchMenuWithCache(userProfile.selectedMensa, today);
+
+            let meals = [];
+            if (Array.isArray(menu)) {
+                const dayData = menu.find((day: any) => day.date === today);
+                meals = dayData?.meals || [];
+            } else if (menu?.meals) {
+                meals = menu.meals;
+            }
+
+            const sustainableMeals = meals.filter((meal: any) => {
+                const badges = meal.badges?.map((b: any) => b?.name) || [];
+                return badges.some(badge =>
+                    ['Fairtrade', 'Klimaessen', 'Nachhaltige Landwirtschaft', 'CO2_bewertung_A'].includes(badge)
+                );
+            });
 
             if (sustainableMeals.length === 0) {
-                return "Heute gibt es leider keine explizit als nachhaltig markierten Gerichte.";
+                return "Heute gibt es leider keine speziell nachhaltigen Optionen.";
             }
 
             let response = "Nachhaltige Optionen heute:\n\n";
-            sustainableMeals.forEach((meal, index) => {
+            sustainableMeals.forEach((meal: any, index: number) => {
                 const price = meal.prices?.[0]?.price ? ` - ${meal.prices[0].price}€` : '';
                 const sustainableBadges = meal.badges?.filter((b: any) =>
                     ['Fairtrade', 'Klimaessen', 'Nachhaltige Landwirtschaft', 'CO2_bewertung_A'].includes(b?.name)
@@ -454,6 +672,42 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
             return response;
         } catch (error) {
             return "Kann nachhaltige Optionen nicht laden.";
+        }
+    };
+
+    const getBudgetOptions = async (): Promise<string> => {
+        try {
+            if (!userProfile?.selectedMensa) {
+                return "Du hast noch keine Lieblings-Mensa ausgewählt. Gehe zu deinem Profil und wähle eine aus!";
+            }
+
+            const today = new Date().toISOString().split('T')[0];
+            const menu = await fetchMenuWithCache(userProfile.selectedMensa, today);
+
+            let meals = [];
+            if (Array.isArray(menu)) {
+                const dayData = menu.find((day: any) => day.date === today);
+                meals = dayData?.meals || [];
+            } else if (menu?.meals) {
+                meals = menu.meals;
+            }
+
+            const budgetMeals = meals
+                .filter((meal: any) => meal.prices?.[0]?.price && meal.prices[0].price <= 4.0)
+                .sort((a: any, b: any) => a.prices[0].price - b.prices[0].price);
+
+            if (budgetMeals.length === 0) {
+                return "Heute gibt es leider keine besonders günstigen Optionen unter 4€.";
+            }
+
+            let response = "Günstige Optionen (unter 4€):\n\n";
+            budgetMeals.slice(0, 5).forEach((meal: any, index: number) => {
+                response += `${index + 1}. ${meal.name || 'Unbekanntes Gericht'} - ${meal.prices[0].price}€\n`;
+            });
+
+            return response;
+        } catch (error) {
+            return "Kann Preisinformationen nicht laden.";
         }
     };
 
@@ -564,141 +818,27 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
                 response += `${index + 1}. ${meal.name}\n`;
                 response += `   ${price}`;
 
-                if (category && !['Essen', 'Hauptgericht', 'Hauptgerichte'].includes(category)) {
+                if (category && !category.toLowerCase().includes('hauptgericht')) {
                     response += ` | ${category}`;
                 }
 
-                const importantBadges = meal.badges?.filter((b: any) =>
-                    ['Vegan', 'Vegetarisch', 'Fairtrade', 'Klimaessen', 'Nachhaltige Landwirtschaft', 'Nachhaltige Fischerei'].includes(b?.name)
+                // Zeige relevante Badges
+                const relevantBadges = meal.badges?.filter((b: any) =>
+                    !['Grüner Ampelpunkt', 'Gelber Ampelpunkt', 'Roter Ampelpunkt'].includes(b?.name)
                 );
-                if (importantBadges?.length > 0) {
-                    response += ` | ${importantBadges.map((b: any) => b.name).join(', ')}`;
+
+                if (relevantBadges?.length > 0) {
+                    response += `\n   ${relevantBadges.map((b: any) => b.name).join(', ')}`;
                 }
 
                 response += '\n\n';
             });
 
-            if (sortedMeals.length > 6) {
-                response += `...und ${sortedMeals.length - 6} weitere Gerichte!`;
-            }
-
             return response;
         } catch (error) {
-            console.error('Debug: Menü-Fehler:', error);
-            return `Kann das heutige Menü nicht laden.`;
+            console.error('Fehler bei getTodaysRecommendations:', error);
+            return "Kann heutige Empfehlungen nicht laden.";
         }
-    };
-
-    const getVegetarianOptions = async (): Promise<string> => {
-        if (!userProfile?.selectedMensa) {
-            return "Wähle zuerst eine Lieblings-Mensa in deinem Profil aus!";
-        }
-
-        try {
-            const today = new Date().toISOString().split('T')[0];
-            const menu = await fetchMenuWithCache(userProfile.selectedMensa, today);
-
-            let meals = [];
-            if (Array.isArray(menu)) {
-                const dayData = menu.find(day => day.date === today);
-                meals = dayData?.meals || [];
-            } else if (menu?.meals && Array.isArray(menu.meals)) {
-                meals = menu.meals;
-            }
-
-            const vegetarianMeals = meals.filter((meal: any) =>
-                meal.badges?.some((badge: any) => {
-                    const badgeName = badge?.name || '';
-                    return badgeName === 'Vegetarisch' || badgeName === 'Vegan';
-                })
-            );
-
-            if (vegetarianMeals.length === 0) {
-                return "Heute gibt es leider keine explizit als vegetarisch/vegan markierten Gerichte.";
-            }
-
-            let response = "Vegetarische & Vegane Optionen:\n\n";
-            vegetarianMeals.forEach((meal, index) => {
-                const price = meal.prices?.[0]?.price ? `${meal.prices[0].price}€` : '';
-
-                const isVegan = meal.badges?.some((b: any) => b?.name === 'Vegan');
-                const type = isVegan ? '(vegan)' : '(vegetarisch)';
-
-                response += `${meal.name || 'Unbekanntes Gericht'} ${type}\n`;
-                if (price) response += `   ${price}\n`;
-
-                const sustainableBadges = meal.badges?.filter((b: any) =>
-                    ['Fairtrade', 'Klimaessen', 'Nachhaltige Landwirtschaft', 'CO2_bewertung_A'].includes(b?.name)
-                );
-                if (sustainableBadges?.length > 0) {
-                    response += `   Nachhaltig: ${sustainableBadges.map((b: any) => b.name).join(', ')}\n`;
-                }
-
-                response += '\n';
-            });
-
-            return response;
-        } catch (error) {
-            console.error('Vegetarische Optionen Fehler:', error);
-            return "Kann vegetarische Optionen nicht laden.";
-        }
-    };
-
-    const getFavoriteMensaMenu = async (): Promise<string> => {
-        if (!userProfile?.selectedMensa) {
-            return "Du hast noch keine Lieblings-Mensa ausgewählt!";
-        }
-
-        try {
-            const canteens = await fetchCanteensWithCache();
-            const mensa = canteens.find((c: any) => c.id === userProfile.selectedMensa);
-            const mensaName = mensa?.name || 'Deine Lieblings-Mensa';
-
-            return `${mensaName}\n\nFrage mich nach dem heutigen Menü oder spezifischen Gerichten!`;
-        } catch (error) {
-            return "Kann Mensa-Informationen nicht laden.";
-        }
-    };
-
-    const getBudgetOptions = async (): Promise<string> => {
-        if (!userProfile?.selectedMensa) {
-            return "Wähle zuerst eine Mensa aus!";
-        }
-
-        try {
-            const today = new Date().toISOString().split('T')[0];
-            const menu = await fetchMenuWithCache(userProfile.selectedMensa, today);
-
-            // Extrahiere Mahlzeiten
-            let meals = [];
-            if (Array.isArray(menu)) {
-                const dayData = menu.find(day => day.date === today);
-                meals = dayData?.meals || [];
-            } else if (menu?.meals && Array.isArray(menu.meals)) {
-                meals = menu.meals;
-            }
-
-            const budgetMeals = meals
-                .filter((meal: any) => meal.prices?.[0]?.price && meal.prices[0].price <= 4.0)
-                .sort((a: any, b: any) => a.prices[0].price - b.prices[0].price);
-
-            if (budgetMeals.length === 0) {
-                return "Heute gibt es leider keine besonders günstigen Optionen unter 4€.";
-            }
-
-            let response = "Günstige Optionen (unter 4€):\n\n";
-            budgetMeals.slice(0, 5).forEach((meal, index) => {
-                response += `${index + 1}. ${meal.name || 'Unbekanntes Gericht'} - ${meal.prices[0].price}€\n`;
-            });
-
-            return response;
-        } catch (error) {
-            return "Kann Preisinformationen nicht laden.";
-        }
-    };
-
-    const getHelpMessage = (): string => {
-        return `Ich kann dir bei folgenden Dingen helfen:\n\n"Was kann ich heute essen?"\n   → Personalisierte Empfehlungen\n\n"Vegetarische Optionen"\n   → Veggie & vegane Gerichte\n\n"Günstige Gerichte"\n   → Budget-Optionen unter 4€\n\n"Meine Mensa"\n   → Info über deine Lieblings-Mensa\n\nStelle einfach deine Frage!`;
     };
 
     const filterMealsByPreferences = (meals: any[]): any[] => {
@@ -741,189 +881,17 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
                         case 'klima':
                             return badgeName === 'Klimaessen';
                         case 'nachhaltig':
-                            return badgeName === 'Nachhaltige Landwirtschaft' ||
-                                badgeName === 'Nachhaltige Fischerei';
-                        case 'co2':
-                        case 'klimafreundlich':
-                            return badgeName === 'CO2_bewertung_A' || badgeName === 'Grüner Ampelpunkt';
-                        case 'wassersparend':
-                            return badgeName === 'H2O_bewertung_A';
+                            return badgeName === 'Nachhaltige Landwirtschaft';
                         default:
-                            // Fallback für andere Präferenzen
-                            return badgeName.toLowerCase().includes(prefLower);
+                            return false;
                     }
                 });
 
-                // Zusätzlich: Name-basierte Suche für Fälle wo Badges fehlen
-                const nameMatches = meal.name && meal.name.toLowerCase().includes(prefLower);
-
-                return badgeMatches || nameMatches;
+                return badgeMatches;
             });
 
             return hasMatchingPreference;
         });
-    };
-
-    // ZUSATZSTOFF-FUNKTIONEN (INNERHALB DER KOMPONENTE)
-    const getAdditiveInfo = async (searchTerm?: string): Promise<string> => {
-        try {
-            // Lade Zusatzstoffe nur einmal
-            if (!additivesCache) {
-                const data = await fetchAdditivesWithCache();
-                setAdditivesCache(data);
-            }
-
-            const currentCache = additivesCache || await fetchAdditivesWithCache();
-
-            if (searchTerm) {
-                const searchLower = searchTerm.toLowerCase();
-                const foundAdditive = currentCache.find((additive: any) =>
-                    (additive.name || '').toLowerCase().includes(searchLower) ||
-                    (additive.code || '').toLowerCase().includes(searchLower)
-                );
-
-                if (foundAdditive) {
-                    return `Zusatzstoff "${foundAdditive.name || foundAdditive.code}":\n\n${foundAdditive.description || 'Keine weitere Beschreibung verfügbar.'}`;
-                } else {
-                    return `Zusatzstoff "${searchTerm}" nicht gefunden.\n\nVerfügbare Zusatzstoffe:\n` +
-                        currentCache.slice(0, 8).map((a: any) => `• ${a.name || a.code}`).join('\n') +
-                        `\n\nTipp: Frage nach "Allergene" für häufige Unverträglichkeiten.`;
-                }
-            } else {
-                const allergenes = currentCache.filter((a: any) =>
-                    ['Glutenhaltiges Getreide', 'Milch und Milchprodukte (inkl. Laktose)', 'Eier', 'Fisch', 'Erdnüsse', 'Soja', 'Schalenfrüchte'].includes(a.name)
-                );
-
-                const additives = currentCache.filter((a: any) =>
-                    ['Farbstoff', 'Konserviert', 'Antioxidationsmittel', 'Geschmacksverstärker', 'Süßungsmittel'].includes(a.name)
-                );
-
-                let response = `Zusatzstoffe & Allergene (${currentCache.length} insgesamt):\n\n`;
-
-                if (allergenes.length > 0) {
-                    response += `Häufige Allergene:\n`;
-                    allergenes.slice(0, 5).forEach((a: any) => {
-                        response += `• ${a.name}\n`;
-                    });
-                    response += '\n';
-                }
-
-                if (additives.length > 0) {
-                    response += `Zusatzstoffe:\n`;
-                    additives.slice(0, 5).forEach((a: any) => {
-                        response += `• ${a.name}\n`;
-                    });
-                    response += '\n';
-                }
-
-                response += `Frage nach spezifischen Stoffen wie "Gluten" oder "Milch"`;
-                return response;
-            }
-        } catch (error) {
-            console.error('Zusatzstoff-Fehler:', error);
-            return 'Kann Zusatzstoff-Informationen nicht laden.';
-        }
-    };
-
-    const getAllergenInfo = async (): Promise<string> => {
-        try {
-            if (!additivesCache) {
-                const data = await fetchAdditivesWithCache();
-                setAdditivesCache(data);
-            }
-
-            const currentCache = additivesCache || await fetchAdditivesWithCache();
-
-            const majorAllergens = [
-                'Glutenhaltiges Getreide',
-                'Milch und Milchprodukte (inkl. Laktose)',
-                'Eier',
-                'Fisch',
-                'Erdnüsse',
-                'Soja',
-                'Schalenfrüchte',
-                'Sellerie',
-                'Senf',
-                'Sesam'
-            ];
-
-            const foundAllergens = currentCache.filter((a: any) =>
-                majorAllergens.includes(a.name)
-            );
-
-            let response = `Hauptallergene in der Mensa:\n\n`;
-            foundAllergens.forEach((allergen: any, index: number) => {
-                response += `${index + 1}. ${allergen.name}\n`;
-            });
-
-            response += `\nFrage mich: "Welche Gerichte sind glutenfrei?" oder "Was kann ich bei Laktoseintoleranz essen?"`;
-
-            return response;
-        } catch (error) {
-            return 'Kann Allergen-Informationen nicht laden.';
-        }
-    };
-
-    const getAllergenFreeMeals = async (allergen: string): Promise<string> => {
-        if (!userProfile?.selectedMensa) {
-            return "Wähle zuerst eine Lieblings-Mensa aus!";
-        }
-
-        try {
-            const today = new Date().toISOString().split('T')[0];
-            const menu = await fetchMenuWithCache(userProfile.selectedMensa, today);
-
-            let meals = [];
-            if (Array.isArray(menu)) {
-                const dayData = menu.find(day => day.date === today);
-                meals = dayData?.meals || [];
-            } else if (menu?.meals && Array.isArray(menu.meals)) {
-                meals = menu.meals;
-            }
-
-            const allergenMapping: { [key: string]: string[] } = {
-                'gluten': ['Glutenhaltiges Getreide', 'Weizen', 'Roggen', 'Gerste', 'Hafer', 'Dinkel'],
-                'milch': ['Milch und Milchprodukte (inkl. Laktose)'],
-                'laktose': ['Milch und Milchprodukte (inkl. Laktose)'],
-                'ei': ['Eier'],
-                'fisch': ['Fisch'],
-                'erdnuss': ['Erdnüsse'],
-                'nuss': ['Schalenfrüchte', 'Mandeln', 'Haselnuss', 'Walnuss'],
-                'soja': ['Soja'],
-                'sellerie': ['Sellerie'],
-                'senf': ['Senf'],
-                'sesam': ['Sesam']
-            };
-
-            const searchTerms = allergenMapping[allergen.toLowerCase()] || [allergen];
-
-            const allergenFreeMeals = meals.filter((meal: any) => {
-                const hasAllergen = meal.additives?.some((additive: any) =>
-                    searchTerms.some(term =>
-                        (additive.name || '').includes(term)
-                    )
-                );
-                return !hasAllergen;
-            });
-
-            if (allergenFreeMeals.length === 0) {
-                return `Heute gibt es leider keine Gerichte ohne ${allergen}.\n\nTipp: Frage nach anderen Allergenen oder schaue morgen wieder vorbei!`;
-            }
-
-            let response = `Gerichte ohne ${allergen} (${allergenFreeMeals.length}):\n\n`;
-            allergenFreeMeals.slice(0, 5).forEach((meal, index) => {
-                const price = meal.prices?.[0]?.price ? ` - ${meal.prices[0].price}€` : '';
-                response += `${index + 1}. ${meal.name}${price}\n`;
-            });
-
-            if (allergenFreeMeals.length > 5) {
-                response += `\n...und ${allergenFreeMeals.length - 5} weitere!`;
-            }
-
-            return response;
-        } catch (error) {
-            return `Kann allergenfreie Gerichte nicht laden.`;
-        }
     };
 
     // Neue Hilfsfunktion: Filtere nur relevante Hauptgerichte
@@ -974,95 +942,177 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
     };
 
     const sortMealsByImportance = (meals: any[]): any[] => {
-        return meals.sort((a, b) => {
-            const getPriority = (meal: any) => {
-                const category = (meal.category || '').toLowerCase();
+        return meals.sort((a: any, b: any) => {
+            // Priorität nach Badges
+            const aHasSpecialBadge = a.badges?.some((badge: any) =>
+                ['Vegan', 'Vegetarisch', 'Fairtrade', 'Klimaessen'].includes(badge?.name)
+            );
+            const bHasSpecialBadge = b.badges?.some((badge: any) =>
+                ['Vegan', 'Vegetarisch', 'Fairtrade', 'Klimaessen'].includes(badge?.name)
+            );
 
-                // Einfache Kategorie-basierte Prioritäten
-                switch (category) {
-                    case 'essen':
-                    case 'hauptgericht':
-                    case 'hauptgerichte':
-                        return 1;
+            if (aHasSpecialBadge && !bHasSpecialBadge) return -1;
+            if (!aHasSpecialBadge && bHasSpecialBadge) return 1;
 
-                    case 'suppen':
-                        return 2;
-
-                    case 'salate':
-                        return 3;
-
-                    case 'desserts':
-                    case 'nachspeise':
-                        return 4;
-
-                    default:
-                        return 5;
-                }
-            };
-
-            const priorityA = getPriority(a);
-            const priorityB = getPriority(b);
-
-            if (priorityA !== priorityB) {
-                return priorityA - priorityB;
-            }
-
-            // Bei gleicher Priorität: Nach Preis sortieren
-            const priceA = a.prices?.[0]?.price || 999;
-            const priceB = b.prices?.[0]?.price || 999;
-            return priceA - priceB;
+            // Sekundäre Sortierung nach Preis
+            const aPrice = a.prices?.[0]?.price || 999;
+            const bPrice = b.prices?.[0]?.price || 999;
+            return aPrice - bPrice;
         });
     };
 
-    const renderMessage = ({ item }: { item: Message }) => (
-        <ChatMessage
-            message={item.message}
-            isUser={item.isUser}
-            timestamp={item.timestamp}
-        />
-    );
+    // Hilfsfunktionen für Zutaten-Erkennung:
+    const hasSpecificIngredient = (message: string): boolean => {
+        const ingredients = [
+            'fisch', 'fish', 'lachs', 'thunfisch', 'kabeljau',
+            'fleisch', 'schwein', 'rind', 'beef', 'pork', 'huhn', 'chicken', 'hähnchen', 'pute', 'turkey',
+            'pasta', 'nudeln', 'spaghetti', 'reis', 'rice', 'kartoffel', 'potato',
+            'salat', 'suppe', 'soup', 'pizza', 'burger',
+            'käse', 'cheese', 'milch', 'milk', 'joghurt', 'yogurt',
+            'tofu', 'seitan', 'quinoa', 'bulgur', 'couscous',
+            'gemüse', 'vegetables', 'tomaten', 'paprika', 'zwiebeln', 'spinat',
+            'obst', 'fruit', 'apfel', 'banane', 'orange',
+            // Allergene hinzugefügt
+            'laktose', 'gluten', 'ei', 'eier', 'nuss', 'nüsse', 'soja', 'sellerie', 'senf', 'sesam'
+        ];
 
-    const renderFooter = () => {
-        if (isTyping) {
-            return <TypingIndicator />;
+        return ingredients.some(ingredient => message.includes(ingredient));
+    };
+
+    const extractIngredientFromMessage = (message: string): string | null => {
+        const patterns = [
+            /(?:mit|von|aus)\s+([a-zA-ZäöüÄÖÜß]+)/g,
+            /([a-zA-ZäöüÄÖÜß]+)(?:\s+heute|\s+gerichte?)/g,
+            /(fisch|fleisch|huhn|pasta|reis|salat|suppe|laktose|milch|gluten|ei|eier|nuss|soja)/g
+        ];
+
+        for (const pattern of patterns) {
+            const matches = message.matchAll(pattern);
+            for (const match of matches) {
+                const ingredient = match[1] || match[0];
+                if (ingredient && ingredient.length > 2) {
+                    return ingredient.toLowerCase();
+                }
+            }
         }
+
+        // Spezielle Allergen-Erkennung
+        const allergenPatterns = [
+            /laktose/g,
+            /milch/g,
+            /gluten/g,
+            /ei|eier/g,
+            /nuss|nüsse/g,
+            /soja/g,
+            /fisch/g,
+            /sellerie/g,
+            /senf/g,
+            /sesam/g
+        ];
+
+        for (const pattern of allergenPatterns) {
+            const match = message.match(pattern);
+            if (match) {
+                return match[0].toLowerCase();
+            }
+        }
+
         return null;
     };
 
+    const extractAllergenFromMessage = (message: string): string => {
+        const lowerMessage = message.toLowerCase();
+
+        if (lowerMessage.includes('gluten')) return 'gluten';
+        if (lowerMessage.includes('laktose') || lowerMessage.includes('milch')) return 'laktose';
+        if (lowerMessage.includes('ei') || lowerMessage.includes('eier')) return 'ei';
+        if (lowerMessage.includes('nuss') || lowerMessage.includes('nüsse')) return 'nuss';
+        if (lowerMessage.includes('fisch')) return 'fisch';
+        if (lowerMessage.includes('soja')) return 'soja';
+        if (lowerMessage.includes('sellerie')) return 'sellerie';
+        if (lowerMessage.includes('senf')) return 'senf';
+        if (lowerMessage.includes('sesam')) return 'sesam';
+
+        return 'allgemein';
+    };
+
+    // Header mit Status-Anzeige
+    const renderHeader = () => (
+        <View style={styles.headerContainer}>
+            <View style={styles.statusContainer}>
+                <Text style={styles.statusText}>
+                    {isOnline ? 'Online AI-Modus' : 'Offline-Modus'}
+                </Text>
+                {!isOnline && (
+                    <Text style={styles.offlineNote}>
+                        Lokale Antworten verfügbar
+                    </Text>
+                )}
+            </View>
+        </View>
+    );
+
     return (
         <View style={styles.container}>
-            {messages.length === 0 ? (
-                <WelcomeMessage />
-            ) : (
-                <FlatList
-                    ref={flatListRef}
-                    data={messages}
-                    renderItem={renderMessage}
-                    keyExtractor={(item) => item.id}
-                    style={styles.messagesList}
-                    showsVerticalScrollIndicator={false}
-                    ListFooterComponent={renderFooter}
-                    onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-                />
-            )}
-
-            <ChatInput
-                onSendMessage={handleSendMessage}
-                disabled={isTyping}
+            {renderHeader()}
+            <FlatList
+                ref={flatListRef}
+                data={messages}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                    <ChatMessage
+                        message={item.message}
+                        isUser={item.isUser}
+                        timestamp={item.timestamp}
+                    />
+                )}
+                ListHeaderComponent={messages.length === 0 ? <WelcomeMessage /> : null}
+                style={styles.messagesList}
+                contentContainerStyle={styles.messagesContainer}
             />
+            {isTyping && <TypingIndicator />}
+            <ChatInput onSendMessage={handleSendMessage} />
         </View>
     );
 });
 
-export default ChatbotScreen;
-
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
+        backgroundColor: '#f8f9fa',
+    },
+    headerContainer: {
+        backgroundColor: '#ffffff',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#e9ecef',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    statusContainer: {
+        alignItems: 'center',
+    },
+    statusText: {
+        fontSize: 12,
+        color: '#28a745',
+        fontWeight: '500',
+    },
+    offlineNote: {
+        fontSize: 10,
+        color: '#6c757d',
+        marginTop: 2,
     },
     messagesList: {
         flex: 1,
-        paddingVertical: 8,
+    },
+    messagesContainer: {
+        padding: 16,
+        paddingBottom: 100,
     },
 });
+
+export default ChatbotScreen;
