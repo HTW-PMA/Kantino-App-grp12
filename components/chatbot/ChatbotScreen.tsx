@@ -85,7 +85,6 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
         setIsTyping(false);
     };
 
-    // Expose leere Funktion via ref - Chat wird NICHT bei Tab-Wechsel zurückgesetzt
     useImperativeHandle(ref, () => ({
         resetChat: () => {
         }
@@ -125,7 +124,6 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
         } finally {
             setIsTyping(false);
 
-            // Scroll zum Ende
             setTimeout(() => {
                 flatListRef.current?.scrollToEnd({ animated: true });
             }, 100);
@@ -141,7 +139,6 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
 
         // Definiere lokale Antwort-Funktionen
         const getLocalResponse = async (): Promise<string> => {
-            // ZUTATEN-SUCHE (immer lokal - präziser als AI)
             const ingredientSearch = extractIngredientFromMessage(lowerMessage);
             if (ingredientSearch) {
                 return await searchMealsByIngredient(ingredientSearch);
@@ -338,7 +335,6 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
     };
 
     const enhanceGeminiResponse = (response: string): string => {
-        // Entferne unnötige Phrasen
         let enhanced = response
             .replace(/Basierend auf den heutigen Menüdaten[,.]*/gi, '')
             .replace(/Laut dem aktuellen Speiseplan[,.]*/gi, '')
@@ -346,7 +342,6 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
             .replace(/Im heutigen Menü der Mensa[,.]*/gi, '')
             .trim();
 
-        // Korrigiere häufige Gemini-Fehler
         enhanced = enhanced
             .replace(/\n\n+/g, '\n\n')
             .replace(/^[•\-]\s*/gm, '')
@@ -610,7 +605,6 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
                 const price = meal.prices?.[0]?.price ? ` - ${meal.prices[0].price}€` : '';
                 response += `${index + 1}. ${meal.name}${price}\n`;
 
-                // Zeige positive Eigenschaften (was NICHT enthalten ist, ist gut)
                 const allergens = meal.allergens || [];
                 if (allergens.length > 0) {
                     response += `   Weitere Allergene: ${allergens.slice(0, 3).join(', ')}${allergens.length > 3 ? '...' : ''}\n`;
@@ -822,7 +816,6 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
                     response += ` | ${category}`;
                 }
 
-                // Zeige relevante Badges
                 const relevantBadges = meal.badges?.filter((b: any) =>
                     !['Grüner Ampelpunkt', 'Gelber Ampelpunkt', 'Roter Ampelpunkt'].includes(b?.name)
                 );
@@ -846,12 +839,10 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
         console.log('User Präferenzen:', userProfile?.preferences);
 
         return meals.filter((meal, index) => {
-            // Sammle Badge-Namen für dieses Gericht
             const mealBadgeNames = meal.badges
                 ?.map((b: any) => b?.name || '')
                 ?.filter(Boolean) || [];
 
-            // Debug für erste paar Gerichte
             if (index < 3) {
                 console.log(`Gericht ${index + 1}:`, {
                     name: meal.name?.substring(0, 30) + '...',
@@ -859,7 +850,6 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
                 });
             }
 
-            // Wenn keine Präferenzen -> zeige alles
             if (!userProfile?.preferences?.length) {
                 return true;
             }
@@ -894,7 +884,6 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
         });
     };
 
-    // Neue Hilfsfunktion: Filtere nur relevante Hauptgerichte
     const filterMainMeals = (meals: any[]): any[] => {
         console.log('=== DEBUG filterMainMeals ===');
         console.log('Input Gerichte:', meals.length);
@@ -903,7 +892,6 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
             const category = (meal.category || '').toLowerCase();
             const name = (meal.name || '').toLowerCase();
 
-            // Debug jeden Filter-Schritt
             console.log(`Prüfe: "${meal.name}" | Kategorie: "${category}"`);
 
             const excludeCategories = [
@@ -918,7 +906,6 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
 
             // ALLE anderen Kategorien sind ok - außer Dressings in Salaten
             if (category === 'salate') {
-                // Nur bei Salaten: Dressings rausfiltern
                 const isDressing = name.includes('dressing') || name.includes('sauce') || name.includes('vinaigrette');
                 if (isDressing) {
                     console.log(`  -> AUSGESCHLOSSEN: Salat ist Dressing/Sauce`);
@@ -954,7 +941,6 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
             if (aHasSpecialBadge && !bHasSpecialBadge) return -1;
             if (!aHasSpecialBadge && bHasSpecialBadge) return 1;
 
-            // Sekundäre Sortierung nach Preis
             const aPrice = a.prices?.[0]?.price || 999;
             const bPrice = b.prices?.[0]?.price || 999;
             return aPrice - bPrice;
@@ -1036,7 +1022,6 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
         return 'allgemein';
     };
 
-    // Header mit Status-Anzeige
     const renderHeader = () => (
         <View style={styles.headerContainer}>
             <View style={styles.statusContainer}>
@@ -1079,14 +1064,14 @@ const ChatbotScreen = forwardRef<any, {}>((props, ref) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f8f9fa',
+        backgroundColor: '#f6f7f8',
     },
     headerContainer: {
         backgroundColor: '#ffffff',
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderBottomWidth: 1,
-        borderBottomColor: '#e9ecef',
+        borderBottomColor: '#f6f7f8',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.1,

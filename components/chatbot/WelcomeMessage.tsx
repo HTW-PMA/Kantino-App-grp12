@@ -22,7 +22,7 @@ export default function WelcomeMessage() {
         loadUserName();
     }, []);
 
-    // WICHTIG: Lädt Name erneut, wenn der Tab fokussiert wird
+    // Lädt Name erneut, wenn der Tab fokussiert wird
     useFocusEffect(
         React.useCallback(() => {
             loadUserName();
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 32,
-        backgroundColor: '#fff',
+        backgroundColor: '#f4f5f6',
     },
     messageContainer: {
         marginBottom: 40,
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
         fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
     },
     infoContainer: {
-        backgroundColor: '#f8f9fa',
+        backgroundColor: '#f4f5f6',
         padding: 20,
         borderRadius: 12,
         width: '100%',

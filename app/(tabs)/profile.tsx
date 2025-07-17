@@ -49,7 +49,6 @@ export default function ProfileScreen() {
     // Screen Focus - lade Daten IMMER neu (außer direkt nach dem Speichern)
     useFocusEffect(
         React.useCallback(() => {
-            // Lade nur nicht neu, wenn gerade gespeichert wurde
             if (saveStatus !== 'saved') {
                 loadInitialData();
             }
@@ -62,19 +61,18 @@ export default function ProfileScreen() {
             const storedMensa = await getSelectedMensa();
             const storedPrefs = await getPreferencesWithMigration();
 
-            // Filtere nur gültige Präferenzen
+            // Filter nur gültige Präferenzen
             const validPrefKeys = PREFERENCES.map(p => p.key);
             const cleanedPrefs = Array.isArray(storedPrefs)
                 ? storedPrefs.filter(pref => validPrefKeys.includes(pref))
                 : [];
 
-            // Falls veraltete Präferenzen gefunden wurden, speichere bereinigte Version
+            // Falls veraltete Präferenzen gefunden wurden, speichert bereinigte Version
             if (Array.isArray(storedPrefs) && cleanedPrefs.length !== storedPrefs.length) {
                 const removedPrefs = storedPrefs.filter(pref => !validPrefKeys.includes(pref));
                 console.log('Veraltete Präferenzen entfernt:', removedPrefs);
                 console.log('Gültige Präferenzen behalten:', cleanedPrefs);
 
-                // Speichere bereinigte Präferenzen zurück in AsyncStorage
                 await storePreferences(cleanedPrefs);
             }
 
@@ -162,7 +160,7 @@ export default function ProfileScreen() {
 
                 {/* Mensa Selection */}
                 <View style={styles.section}>
-                    <Text style={styles.label}>Lieblings-Mensa</Text>
+                    <Text style={styles.label}>Haupt-Mensa</Text>
                     <LocationPicker value={location} onChange={setLocation} />
                 </View>
 
@@ -232,7 +230,6 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
 
-    // Avatar Section - Simple & Clean
     avatarContainer: {
         alignItems: "center",
         marginBottom: 30,
@@ -257,7 +254,6 @@ const styles = StyleSheet.create({
         color: "#333",
     },
 
-    // Form Sections
     section: {
         width: "100%",
         marginBottom: 20,
@@ -277,7 +273,6 @@ const styles = StyleSheet.create({
         backgroundColor: "#fafafa",
     },
 
-    // Preferences - Clean Chips
     prefsContainer: {
         flexDirection: "row",
         flexWrap: "wrap",
@@ -311,14 +306,13 @@ const styles = StyleSheet.create({
         fontWeight: "600",
     },
 
-    // Info Text statt Notizen
     infoText: {
         fontSize: 14,
         color: "#666",
         textAlign: "center",
         fontStyle: "italic",
         padding: 16,
-        backgroundColor: "#f8f9fa",
+        backgroundColor: "#fdfdfd",
         borderRadius: 8,
     },
 

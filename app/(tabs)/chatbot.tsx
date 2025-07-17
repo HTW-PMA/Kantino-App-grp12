@@ -7,7 +7,6 @@ export default function ChatbotTab() {
 
     useFocusEffect(
         React.useCallback(() => {
-            // Wenn der Tab verlassen wird, Chat reset
             return () => {
                 if (chatbotRef.current && chatbotRef.current.resetChat) {
                     chatbotRef.current.resetChat();

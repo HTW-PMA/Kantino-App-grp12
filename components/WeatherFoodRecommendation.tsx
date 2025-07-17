@@ -23,12 +23,10 @@ export default function WeatherFoodRecommendation({ onPress }: WeatherFoodRecomm
     const [userMensa, setUserMensa] = useState<string>('');
     const router = useRouter();
 
-    // Lade Wetter und Empfehlung nur einmal beim Mount
     useEffect(() => {
         loadWeatherAndRecommendation();
     }, []);
 
-    // Lade Nutzer-Mensa bei jedem Focus (wenn von Profil zurückkommt)
     useFocusEffect(
         React.useCallback(() => {
             loadUserMensa();
@@ -64,7 +62,6 @@ export default function WeatherFoodRecommendation({ onPress }: WeatherFoodRecomm
         if (onPress) {
             onPress();
         } else {
-            // Navigiere zum Speiseplan mit der Nutzer-Mensa
             if (userMensa) {
                 router.push({
                     pathname: '/speiseplan',

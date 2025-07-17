@@ -35,7 +35,6 @@ interface FavoriteMealWithContext {
         employees?: number;
         guests?: number;
     };
-    // Kontext-Informationen
     mensaId: string;
     mensaName: string;
     dateAdded: string;
@@ -66,13 +65,11 @@ export default function SavedScreen() {
 
     const loadData = async () => {
         try {
-            // Lade Mensen
             const allMensenData = await fetchCanteensWithCache();
             const savedMensenData = await getSavedMensen();
             setAllMensen(allMensenData);
             setSavedMensenIds(savedMensenData);
 
-            // Lade Lieblingsspeisen mit Kontext
             await loadFavoriteMeals();
         } catch (err) {
             console.error('Fehler beim Laden der Daten:', err);
@@ -82,7 +79,7 @@ export default function SavedScreen() {
 
     const loadFavoriteMeals = async () => {
         try {
-            // Lade echte Lieblingsspeisen aus AsyncStorage
+            // echte Lieblingsspeisen aus AsyncStorage
             const meals = await getFavoriteMealsWithContext();
             setFavoriteMeals(meals);
 
@@ -122,9 +119,7 @@ export default function SavedScreen() {
     const handleRemoveMealFromFavorites = async (mealId: string, mealName: string) => {
         const success = await removeMealFromFavoritesWithContext(mealId);
         if (success) {
-            // Aktualisiere die lokale Liste
             setFavoriteMeals(prev => prev.filter(meal => meal.id !== mealId));
-            // Aktualisiere auch die Kategorien
             const updatedCategories = await getFavoriteCategories();
             setAvailableCategories(updatedCategories);
         }
@@ -146,7 +141,6 @@ export default function SavedScreen() {
             meal.mensaName.toLowerCase().includes(searchQuery.toLowerCase())
         )
         .sort((a, b) => {
-            // Sortiere nach dateAdded - neueste zuerst
             const dateA = new Date(a.dateAdded);
             const dateB = new Date(b.dateAdded);
             return dateB.getTime() - dateA.getTime();

@@ -106,11 +106,9 @@ const getNext7DaysWithStatus = () => {
     return dates;
 };
 
-// Formatiere Label mit Wochentag und Datum
 const getDateLabel = (dateInfo: any) => {
     const { weekday, date, isOpen, dayIndex } = dateInfo;
 
-    // Datum im Format DD.MM
     const dateObj = new Date(date);
     const day = dateObj.getDate().toString().padStart(2, '0');
     const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
@@ -130,7 +128,6 @@ const getDateLabel = (dateInfo: any) => {
     return label;
 };
 
-// Badge: Icon- oder Emoji-Zuordnung
 const getBadgeVisual = (badgeName: string): any => {
     const name = badgeName.toLowerCase();
 
@@ -318,10 +315,8 @@ export default function SpeiseplanScreen() {
     const [menu, setMenu] = useState<any[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
 
-    // Generiere die nächsten 7 Tage mit Status
     const availableDates = getNext7DaysWithStatus();
 
-    // Finde aktuell ausgewähltes Datum-Info
     const selectedDateInfo = availableDates.find(d => d.date === selectedDate);
     const isMensaClosed = selectedDateInfo ? !selectedDateInfo.isOpen : false;
 
@@ -356,7 +351,7 @@ export default function SpeiseplanScreen() {
                         if (mensaExists) {
                             setSelectedCanteen(mensaId as string);
                             console.log('Navigation Parameter Mensa geladen:', mensaId);
-                            return; // Früher return - verwende nicht die gespeicherte Mensa
+                            return;
                         }
                     }
 
@@ -679,10 +674,9 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         borderWidth: 1,
         borderColor: '#e9ecef',
-        position: 'relative', // Für absolute Positionierung
+        position: 'relative',
     },
 
-    // NEU: Like-Button oben rechts absolut positioniert
     likeButtonContainer: {
         position: 'absolute',
         top: 12,
@@ -690,12 +684,10 @@ const styles = StyleSheet.create({
         zIndex: 10,
     },
 
-    // NEU: Content-Bereich mit Platz für Like-Button
     mealContent: {
-        paddingRight: 50, // Platz für Like-Button
+        paddingRight: 50,
     },
 
-    // NEU: Titel-Sektion
     titleSection: {
         marginBottom: 8,
     },
@@ -707,7 +699,6 @@ const styles = StyleSheet.create({
         lineHeight: 22,
     },
 
-    // NEU: Badge-Sektion separat
     badgesSection: {
         marginTop: 8,
         marginBottom: 4,
@@ -717,18 +708,17 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         flexWrap: 'wrap',
-        gap: 6, // Besserer Abstand zwischen Badges
+        gap: 6,
         marginBottom: 6,
     },
 
     badgeContainer: {
-        width: 32, // Etwas größer
+        width: 32,
         height: 32,
         borderRadius: 8,
         padding: 4,
         alignItems: 'center',
         justifyContent: 'center',
-        // Hintergrund und Border entfernt für cleanen Look
     },
 
     badgeImage: {
@@ -740,9 +730,8 @@ const styles = StyleSheet.create({
         fontSize: 18,
     },
 
-    // Überarbeiteter Like-Button
     likeButton: {
-        width: 36, // Etwas größer
+        width: 36,
         height: 36,
         justifyContent: 'center',
         alignItems: 'center',
@@ -758,7 +747,7 @@ const styles = StyleSheet.create({
     },
 
     heartImage: {
-        width: 24, // Etwas größer
+        width: 24,
         height: 24,
     },
 
@@ -767,7 +756,7 @@ const styles = StyleSheet.create({
     },
 
     priceText: {
-        fontSize: 13, // Etwas kleiner für bessere Einzeiligkeit
+        fontSize: 13,
         color: '#495057',
         marginBottom: 4,
         fontWeight: '500'

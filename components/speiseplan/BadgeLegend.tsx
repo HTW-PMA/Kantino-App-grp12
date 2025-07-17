@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 
 interface BadgeInfo {
-    visual: any; // Image require() oder Emoji string
+    visual: any;
     name: string;
     description: string;
     type: 'image' | 'emoji';

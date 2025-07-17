@@ -42,7 +42,7 @@ export default function TabLayout() {
                     ),
                 }}
             />
-            // Wird somit nicht bei der Navigation angezeigt
+            // Wird nicht bei der Navigation angezeigt
             <Tabs.Screen
                 name="speiseplan"
                 options={{

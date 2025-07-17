@@ -16,12 +16,13 @@ export interface FoodRecommendation {
     keywords: string[];
 }
 
-// Kostenlose APIs ohne Key für Berlin
 const BERLIN_COORDS = { lat: 52.5200, lon: 13.4050 };
 
+/**
+ * Benötigt für wetterbasierte Essens-Empfehlungen in der Home-Screen
+ */
 export async function getBerlinWeather(): Promise<WeatherData> {
     try {
-        // open-meteo.com - komplett kostenlos, kein Key nötig
         const response = await fetch(
             `https://api.open-meteo.com/v1/forecast?latitude=${BERLIN_COORDS.lat}&longitude=${BERLIN_COORDS.lon}&current_weather=true&hourly=temperature_2m,relativehumidity_2m&timezone=Europe/Berlin&forecast_days=1`
         );
@@ -47,16 +48,16 @@ export async function getBerlinWeather(): Promise<WeatherData> {
     }
 }
 
-// Mock-Daten für Demo (realistisch für Berlin)
+/**
+ * Verhindert leere Wetteranzeige bei API-Ausfällen oder Offline-Betrieb
+ */
 function getMockWeather(): WeatherData {
     const currentHour = new Date().getHours();
     const currentMonth = new Date().getMonth();
     const isWinter = currentMonth <= 2 || currentMonth >= 11;
     const isSummer = currentMonth >= 5 && currentMonth <= 8;
 
-    // Verschiedene Wetterlagen simulieren
     const scenarios = [
-        // Winter
         ...(isWinter ? [
             { temp: 3, condition: 'Snow', desc: 'leichter Schneefall', humidity: 85 },
             { temp: -1, condition: 'Clouds', desc: 'stark bewölkt', humidity: 80 },
@@ -64,7 +65,6 @@ function getMockWeather(): WeatherData {
             { temp: 5, condition: 'Clear', desc: 'sonnig', humidity: 65 },
         ] : []),
 
-        // Sommer
         ...(isSummer ? [
             { temp: 28, condition: 'Clear', desc: 'sonnig', humidity: 55 },
             { temp: 32, condition: 'Clear', desc: 'sehr sonnig', humidity: 45 },
@@ -72,7 +72,6 @@ function getMockWeather(): WeatherData {
             { temp: 19, condition: 'Rain', desc: 'Regenschauer', humidity: 85 },
         ] : []),
 
-        // Frühling/Herbst
         ...(!isWinter && !isSummer ? [
             { temp: 16, condition: 'Clouds', desc: 'bewölkt', humidity: 70 },
             { temp: 22, condition: 'Clear', desc: 'heiter', humidity: 60 },
@@ -81,7 +80,6 @@ function getMockWeather(): WeatherData {
         ] : [])
     ];
 
-    // Zufälliges Szenario auswählen
     const scenario = scenarios[Math.floor(Math.random() * scenarios.length)];
 
     return {
@@ -103,7 +101,9 @@ function getIconForCondition(condition: string): string {
     }
 }
 
-// Konvertiere Open-Meteo Weather Codes zu lesbaren Conditions
+/**
+ * Open-Meteo API verwendet numerische Codes statt Strings
+ */
 function getConditionFromCode(code: number): string {
     if (code === 0) return 'Clear';
     if (code <= 3) return 'Clouds';
@@ -152,10 +152,12 @@ function getIconFromCode(code: number): string {
     return '01d';
 }
 
+/**
+ * Kernfeature der App - personalisierte Menü-Empfehlungen basierend auf Wetter
+ */
 export function getFoodRecommendation(weather: WeatherData): FoodRecommendation {
     const { temperature, condition, humidity } = weather;
 
-    // Sehr heißes Wetter (>28°C)
     if (temperature > 28) {
         return {
             type: 'Erfrischende Kost',
@@ -166,7 +168,6 @@ export function getFoodRecommendation(weather: WeatherData): FoodRecommendation 
         };
     }
 
-    // Warmes Wetter (22-28°C)
     if (temperature > 22) {
         return {
             type: 'Leichte Gerichte',
@@ -177,7 +178,6 @@ export function getFoodRecommendation(weather: WeatherData): FoodRecommendation 
         };
     }
 
-    // Mildes Wetter (15-22°C)
     if (temperature > 15) {
         return {
             type: 'Ausgewogene Kost',
@@ -188,7 +188,6 @@ export function getFoodRecommendation(weather: WeatherData): FoodRecommendation 
         };
     }
 
-    // Kaltes Wetter oder Regen (<15°C oder Rain/Snow)
     if (temperature < 15 || condition === 'Rain' || condition === 'Snow') {
         return {
             type: 'Wärmende Speisen',
@@ -201,7 +200,6 @@ export function getFoodRecommendation(weather: WeatherData): FoodRecommendation 
         };
     }
 
-    // Hohe Luftfeuchtigkeit (schwül)
     if (humidity > 85 && temperature > 20) {
         return {
             type: 'Leicht Verdauliches',
@@ -212,7 +210,6 @@ export function getFoodRecommendation(weather: WeatherData): FoodRecommendation 
         };
     }
 
-    // Fallback
     return {
         type: 'Vielfältige Auswahl',
         emoji: '🍽️',
@@ -222,6 +219,9 @@ export function getFoodRecommendation(weather: WeatherData): FoodRecommendation 
     };
 }
 
+/**
+ * UI-Konsistenz - einheitliche Emoji-Darstellung in der gesamten App
+ */
 export function getWeatherEmoji(condition: string, temperature: number): string {
     switch (condition.toLowerCase()) {
         case 'clear':

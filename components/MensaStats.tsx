@@ -45,7 +45,7 @@ export default function MensaStats() {
                 setOpenMensaCount(0);
                 setMealCount(0);
             } else {
-                // An Werktagen: Lade nur eine Stichprobe (nicht alle!)
+                // An Werktagen: Lade nur eine Stichprobe
                 await loadSampleStats(selectableMensas);
             }
 
@@ -122,7 +122,6 @@ export default function MensaStats() {
 
                 } catch (error) {
                     console.log(`Stats: Fehler bei Mensa ${canteen.name}:`, error);
-                    // Ignoriert einzelne Fehler, zähle aber weiter
                 }
             }
 
@@ -133,7 +132,6 @@ export default function MensaStats() {
             const estimatedOpenMensas = Math.round(openMensas * samplingRatio);
             const estimatedTotalMeals = Math.round(totalMeals * samplingRatio);
 
-            // Zeige immer als "X+" um zu zeigen, dass es eine Schätzung ist
             setOpenMensaCount(Math.max(estimatedOpenMensas, openMensas));
             setMealCount(Math.max(estimatedTotalMeals, totalMeals));
 
@@ -141,7 +139,6 @@ export default function MensaStats() {
 
         } catch (error) {
             console.error('Fehler beim Laden der Stichproben-Stats:', error);
-            // Fallback zu realistischen Schätzwerten
             setOpenMensaCount(Math.round(canteens.length * 0.8));
             setMealCount(Math.round(canteens.length * 6));
         }

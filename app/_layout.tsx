@@ -4,8 +4,8 @@ import { preloadAllMenus, cleanupOldMenus } from '@/lib/storage';
 
 export default function RootLayout() {
   useEffect(() => {
-    preloadAllMenus();      // Nur Menüs für heute laden
-    cleanupOldMenus();      // Ältere Menüs löschen
+    preloadAllMenus();
+    cleanupOldMenus();
   }, []);
 
   return <Slot />;

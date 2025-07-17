@@ -49,7 +49,6 @@ export default function MensenScreen() {
                 'Mensen konnten nicht online geladen werden. Es werden ggf. gespeicherte Daten angezeigt.'
             );
 
-            // Versuche aus dem Cache zu laden, auch wenn fetchCanteensWithCache fehlgeschlagen ist
             try {
                 const fallbackRaw = await AsyncStorage.getItem('canteens');
                 if (fallbackRaw) {
@@ -94,25 +93,21 @@ export default function MensenScreen() {
 
     const handleFavoritePress = (mensa: any) => {
         console.log('Favorit toggle:', mensa.name);
-        // Favoriten-Logik implementieren
     };
 
     const handleSpeiseplan = (mensaId: string) => {
         console.log('Navigation zum Speiseplan:', mensaId);
-        // Navigation implementieren
     };
 
     const handleLieblingsSpeisen = (mensaId: string) => {
         console.log('Navigation zu Lieblings-Speisen:', mensaId);
-        // Navigation implementieren
     };
 
     const handleRoute = (mensa: any) => {
         console.log('Route zur Mensa:', mensa.name);
-        // Google Maps Integration
     };
 
-    // Korrigierte Grid-Logik für FlatList
+    // FlatList
     const renderMensaGrid = () => {
         const rows = [];
         let currentIndex = 0;
@@ -125,7 +120,6 @@ export default function MensenScreen() {
             const isRightExpanded = expandedMensaId === rightItem?.id;
 
             if (isLeftExpanded) {
-                // Linke Karte ist expandiert
                 rows.push({
                     id: `expanded-left-${currentIndex}`,
                     type: 'expandedLeft',
@@ -133,7 +127,6 @@ export default function MensenScreen() {
                     index: currentIndex
                 });
 
-                // Rechte Karte separat hinzufügen falls vorhanden
                 if (rightItem) {
                     rows.push({
                         id: `single-right-${currentIndex + 1}`,
@@ -217,7 +210,6 @@ export default function MensenScreen() {
             );
         }
 
-        // Normale Zeile
         return (
             <View style={styles.row}>
                 <MensaCard

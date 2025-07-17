@@ -37,7 +37,8 @@ const CACHE_KEYS = {
     preferences: 'userPreferences',
 };
 
-// ===== API CACHE FUNKTIONEN =====
+// Daten abrufen mit Cache-Fallback:
+// Wenn online, frische API-Daten holen, sonst lokal gespeicherte verwenden
 export async function fetchCanteensWithCache(): Promise<any> {
     const online = await isOnline();
     console.log('fetchCanteensWithCache - Online:', online);
@@ -70,6 +71,8 @@ export async function fetchCanteensWithCache(): Promise<any> {
     }
 }
 
+// Menüdaten abrufen mit Altersprüfung:
+// Verhindert Verwendung zu alter Daten (>3 Tage) bei Offline-Nutzung
 export async function fetchMenuWithCache(canteenId: string, date: string): Promise<any> {
     const cacheKey = `${CACHE_KEYS.menu}_${canteenId}_${date}`;
     const online = await isOnline();
@@ -248,10 +251,8 @@ export async function clearApiCache(): Promise<void> {
             CACHE_KEYS.additives
         ];
 
-        // Lösche nur API-Cache, nicht User-Daten
         await Promise.all(apiKeys.map(key => AsyncStorage.removeItem(key)));
 
-        // Lösche auch Menü-Caches (die haben dynamische Keys)
         const allKeys = await AsyncStorage.getAllKeys();
         const menuKeys = allKeys.filter(key => key.startsWith(CACHE_KEYS.menu));
         await Promise.all(menuKeys.map(key => AsyncStorage.removeItem(key)));
@@ -262,7 +263,7 @@ export async function clearApiCache(): Promise<void> {
     }
 }
 
-// ===== MENÜ-PRELOAD FUNKTIONEN =====
+// Tagesmenüs vorgeladen speichern, um schnelle Anzeige zu ermöglichen
 export async function preloadAllMenus(): Promise<void> {
     const online = await isOnline();
     if (!online) {
@@ -295,6 +296,7 @@ export async function preloadAllMenus(): Promise<void> {
     }
 }
 
+// Löschen aller Menüs außer dem für heute, um Speicher zu schonen
 export async function cleanupOldMenus(): Promise<void> {
     try {
         const allKeys = await AsyncStorage.getAllKeys();
@@ -315,7 +317,8 @@ export async function cleanupOldMenus(): Promise<void> {
     }
 }
 
-// ===== USERNAME FUNKTIONEN =====
+// Speicherung und Abruf von Nutzername, Favoriten, Präferenzen etc.
+// Dabei jeweils Fehler abfangen, um Abstürze zu vermeiden
 export const storeName = async (name: string): Promise<void> => {
     try {
         await AsyncStorage.setItem(CACHE_KEYS.userName, name);
@@ -342,7 +345,7 @@ export const removeName = async (): Promise<void> => {
     }
 };
 
-// ===== GESPEICHERTE MENSEN FUNKTIONEN =====
+// Gespeicherte Mensen verwalten (Favoritenliste)
 export const getSavedMensen = async (): Promise<string[]> => {
     try {
         const saved = await AsyncStorage.getItem(CACHE_KEYS.savedMensen);
@@ -391,7 +394,6 @@ export const isMensaSaved = async (mensaId: string): Promise<boolean> => {
     }
 };
 
-// ===== LIEBLINGSSPEISEN MIT KONTEXT =====
 export const getFavoriteMealsWithContext = async (): Promise<FavoriteMealWithContext[]> => {
     try {
         const favorites = await AsyncStorage.getItem(CACHE_KEYS.favoriteMealsWithContext);
@@ -413,7 +415,6 @@ export const addMealToFavoritesWithContext = async (
     try {
         const favorites = await getFavoriteMealsWithContext();
 
-        // Prüfe ob bereits vorhanden
         const exists = favorites.some(fav => fav.id === meal.id);
         if (exists) return false;
 
@@ -473,7 +474,6 @@ export const getFavoriteCategories = async (): Promise<string[]> => {
     }
 };
 
-// ===== MENSA-AUSWAHL FUNKTIONEN =====
 export const storeSelectedMensa = async (mensaId: string): Promise<void> => {
     try {
         await AsyncStorage.setItem(CACHE_KEYS.selectedMensa, mensaId);
@@ -501,7 +501,8 @@ export const removeSelectedMensa = async (): Promise<void> => {
     }
 };
 
-// ===== ESSENSVORLIEBEN FUNKTIONEN =====
+// Präferenzen verwalten (lesen, speichern, hinzufügen, entfernen)
+// Migration von alten Formaten auf aktuelles Array-Format
 export const getPreferences = async (): Promise<string[]> => {
     try {
         const preferences = await AsyncStorage.getItem(CACHE_KEYS.preferences);
@@ -559,7 +560,6 @@ export const hasPreference = async (preference: string): Promise<boolean> => {
     }
 };
 
-// Migration für Präferenzen
 export const migratePreferencesToFinalFormat = async (): Promise<void> => {
     try {
         const rawPrefs = await AsyncStorage.getItem(CACHE_KEYS.preferences);
@@ -572,7 +572,6 @@ export const migratePreferencesToFinalFormat = async (): Promise<void> => {
         const parsed = JSON.parse(rawPrefs);
         let arrayPrefs: string[] = [];
 
-        // Object → Array (falls nötig)
         if (typeof parsed === 'object' && !Array.isArray(parsed)) {
             console.log('Object → Array Migration...');
 
@@ -598,7 +597,6 @@ export const migratePreferencesToFinalFormat = async (): Promise<void> => {
             console.log('Bereits Array-Format:', arrayPrefs);
         }
 
-        // Array → finale saubere Badges
         console.log('Bereinige zu echten API-Badges...');
 
         const finalPrefs: string[] = [];
